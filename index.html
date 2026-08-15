@@ -10,35 +10,91 @@
     body {
       font-family: sans-serif;
       margin: 12px;
+      background: #f5f5f5;
     }
 
     h1 {
       font-size: 22px;
+      margin-bottom: 16px;
+    }
+
+    .filters {
+      background: white;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+    }
+
+    .filter-row {
+      margin-bottom: 10px;
+    }
+
+    .filter-row:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: inline-block;
+      width: 50px;
+      font-weight: bold;
     }
 
     select {
       font-size: 16px;
-      padding: 6px;
+      padding: 7px;
+      width: calc(100% - 60px);
+      max-width: 350px;
     }
 
-    .table-wrap {
-      width: 100%;
-      overflow-x: auto;
-      margin-top: 16px;
+    .result-info {
+      margin: 10px 0;
+      font-size: 14px;
     }
 
     table {
+      width: 100%;
       border-collapse: collapse;
-      min-width: 800px;
+      background: white;
       font-size: 14px;
     }
 
     th,
     td {
       border: 1px solid #ccc;
-      padding: 6px 8px;
-      white-space: nowrap;
+      padding: 7px 3px;
       text-align: center;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    .positive {
+      color: red;
+    }
+
+    .negative {
+      color: blue;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        margin: 8px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      table {
+        font-size: 12px;
+      }
+
+      th,
+      td {
+        padding: 6px 2px;
+      }
     }
   </style>
 </head>
@@ -47,32 +103,48 @@
 
   <h1>スロットデータ</h1>
 
-  <label>
-    店舗：
-    <select id="shop-select">
-      <option value="">全店舗</option>
-    </select>
-  </label>
+  <div class="filters">
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>店舗</th>
-          <th>台番</th>
-          <th>BIG</th>
-          <th>REG</th>
-          <th>回転数</th>
-          <th>日付</th>
-          <th>機種</th>
-          <th>差枚</th>
-          <th>RANK</th>
-        </tr>
-      </thead>
+    <div class="filter-row">
+      <label for="shop-select">店舗</label>
+      <select id="shop-select">
+        <option value="">全店舗</option>
+      </select>
+    </div>
 
-      <tbody id="slot-data"></tbody>
-    </table>
+    <div class="filter-row">
+      <label for="day-select">日付</label>
+      <select id="day-select">
+        <option value="">全日付</option>
+      </select>
+    </div>
+
+    <div class="filter-row">
+      <label for="name-select">機種</label>
+      <select id="name-select">
+        <option value="">全機種</option>
+      </select>
+    </div>
+
   </div>
+
+  <div id="result-info" class="result-info"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>台番</th>
+        <th>BIG</th>
+        <th>REG</th>
+        <th>回転</th>
+        <th>差枚</th>
+        <th>RANK</th>
+      </tr>
+    </thead>
+
+    <tbody id="slot-data"></tbody>
+  </table>
+
 
   <script>
     const SUPABASE_URL =
@@ -82,10 +154,13 @@
       'sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm';
 
 
-    async function loadShops() {
+    let allData = [];
+
+
+    async function fetchAllData() {
 
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/slot?select=shopid&order=shopid`,
+        `${SUPABASE_URL}/rest/v1/slot?select=*&order=day.desc,slotid`,
         {
           headers: {
             apikey: SUPABASE_KEY,
@@ -94,67 +169,141 @@
         }
       );
 
-      const data = await response.json();
+      if (!response.ok) {
+        document.getElementById('result-info').textContent =
+          'データ取得に失敗しました。';
 
-      const shops = [
+        return;
+      }
+
+      allData = await response.json();
+    }
+
+
+    function uniqueValues(column) {
+
+      return [
         ...new Set(
-          data.map(row => row.shopid)
+          allData
+            .map(row => row[column])
+            .filter(value => value !== null && value !== '')
         )
       ];
+    }
+
+
+    function setOptions(selectId, values, allLabel) {
 
       const select =
-        document.getElementById('shop-select');
+        document.getElementById(selectId);
 
-      shops.forEach(shop => {
+      const currentValue =
+        select.value;
+
+      select.innerHTML =
+        `<option value="">${allLabel}</option>`;
+
+      values.forEach(value => {
 
         const option =
           document.createElement('option');
 
-        option.value = shop;
-        option.textContent = shop;
+        option.value = value;
+        option.textContent = value;
 
         select.appendChild(option);
       });
 
-
-      // URLに ?shop= がある場合
-      const params =
-        new URLSearchParams(location.search);
-
-      const shop =
-        params.get('shop');
-
-      if (shop) {
-        select.value = shop;
+      if (values.includes(currentValue)) {
+        select.value = currentValue;
       }
     }
 
 
-    async function loadData() {
+    function updateFilters() {
 
       const shop =
         document.getElementById('shop-select').value;
 
-      let url =
-        `${SUPABASE_URL}/rest/v1/slot?select=*&order=day.desc,slotid`;
+      const day =
+        document.getElementById('day-select').value;
 
-      if (shop) {
-        url +=
-          `&shopid=eq.${encodeURIComponent(shop)}`;
-      }
+      const name =
+        document.getElementById('name-select').value;
 
 
-      const response = await fetch(
-        url,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`
-          }
-        }
+      // 店舗候補
+      setOptions(
+        'shop-select',
+        uniqueValues('shopid').sort(),
+        '全店舗'
       );
 
-      const data = await response.json();
+
+      // 選択店舗に存在する日付だけ
+      const daySource =
+        allData.filter(row =>
+          !shop || row.shopid === shop
+        );
+
+      const days = [
+        ...new Set(
+          daySource.map(row => row.day)
+        )
+      ].sort().reverse();
+
+      setOptions(
+        'day-select',
+        days,
+        '全日付'
+      );
+
+
+      // 店舗・日付に存在する機種だけ
+      const nameSource =
+        allData.filter(row =>
+          (!shop || row.shopid === shop) &&
+          (!day || row.day === day)
+        );
+
+      const names = [
+        ...new Set(
+          nameSource
+            .map(row => row.name)
+            .filter(Boolean)
+        )
+      ].sort();
+
+      setOptions(
+        'name-select',
+        names,
+        '全機種'
+      );
+    }
+
+
+    function displayData() {
+
+      const shop =
+        document.getElementById('shop-select').value;
+
+      const day =
+        document.getElementById('day-select').value;
+
+      const name =
+        document.getElementById('name-select').value;
+
+
+      const filteredData =
+        allData.filter(row => {
+
+          return (
+            (!shop || row.shopid === shop) &&
+            (!day || row.day === day) &&
+            (!name || row.name === name)
+          );
+
+        });
 
 
       const tbody =
@@ -163,61 +312,178 @@
       tbody.innerHTML = '';
 
 
-      data.forEach(row => {
+      filteredData.forEach(row => {
+
+        let medalClass = '';
+
+        if (row.medal > 0) {
+          medalClass = 'positive';
+        } else if (row.medal < 0) {
+          medalClass = 'negative';
+        }
+
 
         tbody.innerHTML += `
           <tr>
-            <td>${row.shopid}</td>
-            <td>${row.slotid}</td>
-            <td>${row.big}</td>
-            <td>${row.reg}</td>
-            <td>${row.count}</td>
-            <td>${row.day}</td>
-            <td>${row.name}</td>
-            <td>${row.medal ?? ''}</td>
+            <td>${row.slotid ?? ''}</td>
+            <td>${row.big ?? ''}</td>
+            <td>${row.reg ?? ''}</td>
+            <td>${row.count ?? ''}</td>
+            <td class="${medalClass}">
+              ${row.medal ?? ''}
+            </td>
             <td>${row.rank ?? ''}</td>
           </tr>
         `;
-
       });
+
+
+      let info = `${filteredData.length}台`;
+
+      if (shop) {
+        info += ` / ${shop}`;
+      }
+
+      if (day) {
+        info += ` / ${day}`;
+      }
+
+      if (name) {
+        info += ` / ${name}`;
+      }
+
+      document.getElementById('result-info').textContent =
+        info;
+    }
+
+
+    function updateUrl() {
+
+      const shop =
+        document.getElementById('shop-select').value;
+
+      const day =
+        document.getElementById('day-select').value;
+
+      const name =
+        document.getElementById('name-select').value;
+
+
+      const params =
+        new URLSearchParams();
+
+      if (shop) {
+        params.set('shop', shop);
+      }
+
+      if (day) {
+        params.set('day', day);
+      }
+
+      if (name) {
+        params.set('name', name);
+      }
+
+
+      const query =
+        params.toString();
+
+      const url =
+        query
+          ? `${location.pathname}?${query}`
+          : location.pathname;
+
+      history.replaceState(
+        null,
+        '',
+        url
+      );
+    }
+
+
+    function refresh() {
+
+      updateFilters();
+      displayData();
+      updateUrl();
+    }
+
+
+    function loadUrlParameters() {
+
+      const params =
+        new URLSearchParams(location.search);
+
+      const shop =
+        params.get('shop');
+
+      const day =
+        params.get('day');
+
+      const name =
+        params.get('name');
+
+
+      if (shop) {
+        document.getElementById('shop-select').value =
+          shop;
+      }
+
+      updateFilters();
+
+
+      if (day) {
+        document.getElementById('day-select').value =
+          day;
+      }
+
+      updateFilters();
+
+
+      if (name) {
+        document.getElementById('name-select').value =
+          name;
+      }
     }
 
 
     document
       .getElementById('shop-select')
-      .addEventListener(
-        'change',
-        function () {
+      .addEventListener('change', () => {
 
-          const shop = this.value;
+        document.getElementById('day-select').value = '';
+        document.getElementById('name-select').value = '';
 
-          if (shop) {
+        refresh();
+      });
 
-            history.replaceState(
-              null,
-              '',
-              `?shop=${encodeURIComponent(shop)}`
-            );
 
-          } else {
+    document
+      .getElementById('day-select')
+      .addEventListener('change', () => {
 
-            history.replaceState(
-              null,
-              '',
-              location.pathname
-            );
-          }
+        document.getElementById('name-select').value = '';
 
-          loadData();
-        }
-      );
+        refresh();
+      });
+
+
+    document
+      .getElementById('name-select')
+      .addEventListener('change', refresh);
 
 
     async function init() {
 
-      await loadShops();
+      await fetchAllData();
 
-      await loadData();
+      updateFilters();
+
+      loadUrlParameters();
+
+      displayData();
+
+      updateUrl();
     }
 
 
