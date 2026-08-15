@@ -5,7 +5,17 @@
   <title>Slot Data</title>
 </head>
 <body>
+
   <h1>スロットデータ</h1>
+
+  <label>
+    店舗：
+    <select id="shop-select">
+      <option value="">全店舗</option>
+    </select>
+  </label>
+
+  <br><br>
 
   <table border="1">
     <thead>
@@ -21,6 +31,7 @@
         <th>RANK</th>
       </tr>
     </thead>
+
     <tbody id="slot-data"></tbody>
   </table>
 
@@ -28,46 +39,109 @@
     const SUPABASE_URL = 'https://cbakwimqxhfbqdnvyeoi.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm';
 
-  async function loadData() {
-    const params = new URLSearchParams(location.search);
-    const shop = params.get('shop');
+    async function loadShops() {
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/slot?select=shopid&order=shopid`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
 
-    let url = `${SUPABASE_URL}/rest/v1/slot?select=*`;
+      const data = await response.json();
 
-    if (shop) {
-      url += `&shopid=eq.${encodeURIComponent(shop)}`;
+      const shops = [...new Set(data.map(row => row.shopid))];
+
+      const select = document.getElementById('shop-select');
+
+      shops.forEach(shop => {
+        const option = document.createElement('option');
+        option.value = shop;
+        option.textContent = shop;
+        select.appendChild(option);
+      });
+
+      const params = new URLSearchParams(location.search);
+      const shop = params.get('shop');
+
+      if (shop) {
+        select.value = shop;
+      }
     }
 
-    const response = await fetch(url, {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
+    async function loadData() {
+      const shop = document.getElementById('shop-select').value;
+
+      let url =
+        `${SUPABASE_URL}/rest/v1/slot?select=*&order=day.desc,slotid`;
+
+      if (shop) {
+        url += `&shopid=eq.${encodeURIComponent(shop)}`;
       }
-    });
 
-    const data = await response.json();
+      const response = await fetch(
+        url,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
 
-    const tbody = document.getElementById('slot-data');
-    tbody.innerHTML = '';
+      const data = await response.json();
 
-    data.forEach(row => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${row.shopid}</td>
-          <td>${row.slotid}</td>
-          <td>${row.big}</td>
-          <td>${row.reg}</td>
-          <td>${row.count}</td>
-          <td>${row.day}</td>
-          <td>${row.name}</td>
-          <td>${row.medal}</td>
-          <td>${row.rank ?? ''}</td>
-        </tr>
-      `;
-    });
-  }
+      const tbody = document.getElementById('slot-data');
+      tbody.innerHTML = '';
 
-  loadData();
+      data.forEach(row => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${row.shopid}</td>
+            <td>${row.slotid}</td>
+            <td>${row.big}</td>
+            <td>${row.reg}</td>
+            <td>${row.count}</td>
+            <td>${row.day}</td>
+            <td>${row.name}</td>
+            <td>${row.medal ?? ''}</td>
+            <td>${row.rank ?? ''}</td>
+          </tr>
+        `;
+      });
+    }
+
+    document
+      .getElementById('shop-select')
+      .addEventListener('change', function () {
+        const shop = this.value;
+
+        if (shop) {
+          history.replaceState(
+            null,
+            '',
+            `?shop=${encodeURIComponent(shop)}`
+          );
+        } else {
+          history.replaceState(
+            null,
+            '',
+            location.pathname
+          );
+        }
+
+        loadData();
+      });
+
+    async function init() {
+      await loadShops();
+      await loadData();
+    }
+
+    init();
   </script>
+
 </body>
 </html>
