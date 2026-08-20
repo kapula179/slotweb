@@ -128,6 +128,23 @@
       margin-top: 8px;
     }
 
+    .sort-button {
+      border: 0;
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      font: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .sort-button:hover,
+    .sort-button:focus-visible {
+      color: #1565c0;
+      text-decoration: underline;
+    }
+
     @media (max-width: 600px) {
       body {
         margin: 8px;
@@ -216,6 +233,18 @@
           <th>前日REG</th>
           <th>前日BIG</th>
           <th>前日回転</th>
+          <th>
+            <button class="sort-button" type="button"
+              onclick="sortPredictionsByMedal('oldMedal', this)">
+              前々日差枚 ↕
+            </button>
+          </th>
+          <th>
+            <button class="sort-button" type="button"
+              onclick="sortPredictionsByMedal('previousMedal', this)">
+              前日差枚 ↕
+            </button>
+          </th>
         </tr>
       </thead>
       <tbody id="prediction-data"></tbody>
@@ -580,6 +609,12 @@
         const tr =
           document.createElement('tr');
 
+        tr.dataset.oldMedal =
+          oldDay.medal ?? '';
+
+        tr.dataset.previousMedal =
+          previousDay.medal ?? '';
+
         appendCell(tr, row.slotid);
         appendCell(tr, row.name);
 
@@ -620,6 +655,14 @@
         appendCell(
           tr,
           previousDay.spins
+        );
+        appendMedalCell(
+          tr,
+          oldDay.medal
+        );
+        appendMedalCell(
+          tr,
+          previousDay.medal
         );
 
         tbody.appendChild(tr);
@@ -675,6 +718,96 @@
         value ?? '';
 
       row.appendChild(cell);
+    }
+
+
+    function appendMedalCell(row, value) {
+
+      const cell =
+        document.createElement('td');
+
+      const number = Number(value);
+
+      if (value !== null && value !== undefined) {
+        cell.textContent =
+          number > 0
+            ? `+${number}`
+            : number;
+
+        if (number > 0) {
+          cell.className = 'positive';
+        } else if (number < 0) {
+          cell.className = 'negative';
+        }
+      }
+
+      row.appendChild(cell);
+    }
+
+
+    const predictionSortDirections = {
+      oldMedal: 'none',
+      previousMedal: 'none'
+    };
+
+
+    function sortPredictionsByMedal(
+      key,
+      button
+    ) {
+
+      const tbody =
+        document.getElementById(
+          'prediction-data'
+        );
+
+      const direction =
+        predictionSortDirections[key] === 'desc'
+          ? 'asc'
+          : 'desc';
+
+      predictionSortDirections.oldMedal = 'none';
+      predictionSortDirections.previousMedal = 'none';
+      predictionSortDirections[key] = direction;
+
+      const rows =
+        Array.from(tbody.rows);
+
+      rows.sort((left, right) => {
+
+        const leftText = left.dataset[key];
+        const rightText = right.dataset[key];
+
+        if (leftText === '' && rightText === '') return 0;
+        if (leftText === '') return 1;
+        if (rightText === '') return -1;
+
+        const difference =
+          Number(leftText) - Number(rightText);
+
+        return direction === 'asc'
+          ? difference
+          : -difference;
+      });
+
+      rows.forEach(row =>
+        tbody.appendChild(row)
+      );
+
+      document
+        .querySelectorAll('.sort-button')
+        .forEach(item => {
+          item.textContent =
+            item.textContent
+              .replace(/[↑↓↕]/g, '')
+              .trim() + ' ↕';
+        });
+
+      button.textContent =
+        button.textContent
+          .replace(/[↑↓↕]/g, '')
+          .trim() +
+        (direction === 'asc' ? ' ↑' : ' ↓');
     }
 
 

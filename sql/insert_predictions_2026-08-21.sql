@@ -42,6 +42,7 @@ two_days as (
     max(spins) filter (where data_day = date '2026-08-19') as spins_19,
     max(big) filter (where data_day = date '2026-08-19') as big_19,
     max(reg) filter (where data_day = date '2026-08-19') as reg_19,
+    max(medal) filter (where data_day = date '2026-08-19') as medal_19,
     max(reg_denominator) filter (where data_day = date '2026-08-19') as reg_denominator_19,
 
     max(spins) filter (where data_day = date '2026-08-20') as spins_20,
@@ -118,7 +119,8 @@ select
     jsonb_build_object(
       'day', '2026-08-19',
       'spins', spins_19,
-      'reg_denominator', round(reg_denominator_19, 1)
+      'reg_denominator', round(reg_denominator_19, 1),
+      'medal', medal_19
     ),
     jsonb_build_object(
       'day', '2026-08-20',
