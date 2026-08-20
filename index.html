@@ -118,8 +118,8 @@
     }
 
     .prediction-avoid {
-      color: #555;
-      background: #e8e8e8;
+      color: #0b4f8a;
+      background: #dceeff;
     }
 
     .prediction-marginal {
@@ -149,6 +149,74 @@
     .sort-button:focus-visible {
       color: #1565c0;
       text-decoration: underline;
+    }
+
+    .island-map {
+      margin: 16px 0 22px;
+      padding: 14px;
+      overflow-x: auto;
+      background: #fff;
+      border-radius: 8px;
+    }
+
+    .island-map h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+
+    .island-side {
+      display: grid;
+      grid-template-columns: repeat(14, minmax(74px, 1fr));
+      gap: 5px;
+      min-width: 1100px;
+    }
+
+    .island-aisle {
+      min-width: 1100px;
+      padding: 12px 0;
+      color: #777;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: 0.4em;
+    }
+
+    .island-machine {
+      min-height: 86px;
+      padding: 7px 3px;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      color: #222;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .island-machine:hover,
+    .island-machine:focus-visible {
+      border-color: #1565c0;
+      outline: none;
+    }
+
+    .island-machine.top-ranked {
+      border-color: #d49b00;
+      box-shadow: 0 0 0 1px #fff inset;
+    }
+
+    .island-slotid {
+      display: block;
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    .island-grade,
+    .island-medal,
+    .island-rank {
+      display: block;
+      margin-top: 3px;
+      font-size: 11px;
+    }
+
+    .island-medal {
+      font-weight: bold;
     }
 
     @media (max-width: 600px) {
@@ -228,33 +296,32 @@
     <h2 id="prediction-title">翌日予想</h2>
     <div id="prediction-info" class="result-info"></div>
 
+    <div id="island-map" class="island-map" hidden>
+      <h3>テキサス八木 マイジャグラー島</h3>
+      <div id="island-top" class="island-side"></div>
+      <div class="island-aisle">通路</div>
+      <div id="island-bottom" class="island-side"></div>
+    </div>
+
     <table>
       <thead>
         <tr>
-          <th>台番</th>
-          <th>機種</th>
-          <th>判定</th>
-          <th>ワースト順位</th>
-          <th>前々日REG</th>
-          <th>前日REG</th>
-          <th>前日BIG</th>
-          <th>前日回転</th>
           <th>
-            <button class="sort-button" type="button"
-              onclick="sortPredictions('oldMedal', this)">
-              前々日推定差枚 ↕
+            <button class="sort-button" type="button" data-sort-key="slotid"
+              onclick="sortPredictionTable('slotid', this)">
+              台番 ↑
             </button>
           </th>
           <th>
-            <button class="sort-button" type="button"
-              onclick="sortPredictions('previousMedal', this)">
-              前日推定差枚 ↕
+            <button class="sort-button" type="button" data-sort-key="grade"
+              onclick="sortPredictionTable('grade', this)">
+              判定 ↕
             </button>
           </th>
           <th>
-            <button class="sort-button" type="button"
-              onclick="sortPredictions('twoDayMedal', this)">
-              2日合計推定差枚 ↑
+            <button class="sort-button" type="button" data-sort-key="rank"
+              onclick="sortPredictionTable('rank', this)">
+              ワースト順位 ↕
             </button>
           </th>
         </tr>
@@ -572,14 +639,16 @@
 
       displayPredictions(
         data,
-        predictionDay
+        predictionDay,
+        shop
       );
     }
 
 
     function displayPredictions(
       data,
-      predictionDay
+      predictionDay,
+      shop
     ) {
 
       const section =
@@ -644,37 +713,24 @@
         }
       });
 
+      resetPredictionTableSort();
       tbody.innerHTML = '';
 
-      rankedRows
-        .map(item => item.row)
+      data
+        .slice()
+        .sort((left, right) =>
+          String(left.slotid).localeCompare(
+            String(right.slotid),
+            'ja',
+            { numeric: true }
+          )
+        )
         .forEach(row => {
 
         if (counts[row.grade] !== undefined) {
           counts[row.grade]++;
         }
 
-        const reasons =
-          Array.isArray(row.reasons)
-            ? row.reasons
-            : [];
-
-        const oldDay = reasons[0] || {};
-        const previousDay = reasons[1] || {};
-        const oldEstimatedMedal =
-          oldDay.estimated_medal ??
-          oldDay.medal;
-        const previousEstimatedMedal =
-          previousDay.estimated_medal ??
-          previousDay.medal;
-        const twoDayEstimatedMedal =
-          oldEstimatedMedal === null ||
-          oldEstimatedMedal === undefined ||
-          previousEstimatedMedal === null ||
-          previousEstimatedMedal === undefined
-            ? null
-            : Number(oldEstimatedMedal) +
-              Number(previousEstimatedMedal);
         const prediction =
           getPredictionPresentation(
             row.grade
@@ -683,17 +739,18 @@
         const tr =
           document.createElement('tr');
 
-        tr.dataset.oldMedal =
-          oldEstimatedMedal ?? '';
+        tr.id =
+          `prediction-slot-${row.slotid}`;
 
-        tr.dataset.previousMedal =
-          previousEstimatedMedal ?? '';
-
-        tr.dataset.twoDayMedal =
-          twoDayEstimatedMedal ?? '';
+        tr.dataset.slotid = row.slotid;
+        tr.dataset.grade =
+          getPredictionGradeOrder(
+            row.grade
+          );
+        tr.dataset.rank =
+          worstRanks.get(row.slotid) ?? '';
 
         appendCell(tr, row.slotid);
-        appendCell(tr, row.name);
 
         const labelCell =
           document.createElement('td');
@@ -714,40 +771,6 @@
           tr,
           worstRanks.get(row.slotid)
         );
-        appendCell(
-          tr,
-          formatProbability(
-            oldDay.reg_denominator
-          )
-        );
-        appendCell(
-          tr,
-          formatProbability(
-            previousDay.reg_denominator
-          )
-        );
-        appendCell(
-          tr,
-          formatProbability(
-            previousDay.big_denominator
-          )
-        );
-        appendCell(
-          tr,
-          previousDay.spins
-        );
-        appendMedalCell(
-          tr,
-          oldEstimatedMedal
-        );
-        appendMedalCell(
-          tr,
-          previousEstimatedMedal
-        );
-        appendMedalCell(
-          tr,
-          twoDayEstimatedMedal
-        );
 
         tbody.appendChild(tr);
       });
@@ -767,81 +790,57 @@
           `保留 ${counts.marginal}台`;
 
       section.hidden = false;
+
+      displayIslandMap(
+        shop,
+        data,
+        worstRanks
+      );
     }
 
 
-    function getPredictionPresentation(grade) {
+    function getPredictionGradeOrder(grade) {
 
-      const presentations = {
-        hold_misfire: {
-          label: '不発据え置き',
-          className: 'prediction-hold'
-        },
-        raise_candidate: {
-          label: '上げ候補',
-          className: 'prediction-raise'
-        },
-        avoid_recent_high: {
-          label: '回避候補',
-          className: 'prediction-avoid'
-        },
-        marginal: {
-          label: '判定保留',
-          className: 'prediction-marginal'
-        }
+      const order = {
+        raise_candidate: 1,
+        hold_misfire: 2,
+        avoid_recent_high: 3,
+        marginal: 4
       };
 
-      return presentations[grade] || {
-        label: grade || '',
-        className: ''
-      };
+      return order[grade] ?? 99;
     }
 
 
-    function appendCell(row, value) {
-
-      const cell =
-        document.createElement('td');
-
-      cell.textContent =
-        value ?? '';
-
-      row.appendChild(cell);
-    }
-
-
-    function appendMedalCell(row, value) {
-
-      const cell =
-        document.createElement('td');
-
-      const number = Number(value);
-
-      if (value !== null && value !== undefined) {
-        cell.textContent =
-          number > 0
-            ? `+${number}`
-            : number;
-
-        if (number > 0) {
-          cell.className = 'positive';
-        } else if (number < 0) {
-          cell.className = 'negative';
-        }
-      }
-
-      row.appendChild(cell);
-    }
-
-
-    const predictionSortDirections = {
-      oldMedal: 'none',
-      previousMedal: 'none',
-      twoDayMedal: 'asc'
+    const predictionTableDirections = {
+      slotid: 'asc',
+      grade: 'none',
+      rank: 'none'
     };
 
 
-    function sortPredictions(
+    function resetPredictionTableSort() {
+
+      predictionTableDirections.slotid = 'asc';
+      predictionTableDirections.grade = 'none';
+      predictionTableDirections.rank = 'none';
+
+      const labels = {
+        slotid: '台番 ↑',
+        grade: '判定 ↕',
+        rank: 'ワースト順位 ↕'
+      };
+
+      document
+        .querySelectorAll('.sort-button')
+        .forEach(button => {
+          button.textContent =
+            labels[button.dataset.sortKey];
+        });
+    }
+
+
+    function sortPredictionTable(
       key,
       button
     ) {
@@ -852,14 +851,14 @@
         );
 
       const direction =
-        predictionSortDirections[key] === 'desc'
-          ? 'asc'
-          : 'desc';
+        predictionTableDirections[key] === 'asc'
+          ? 'desc'
+          : 'asc';
 
-      predictionSortDirections.oldMedal = 'none';
-      predictionSortDirections.previousMedal = 'none';
-      predictionSortDirections.twoDayMedal = 'none';
-      predictionSortDirections[key] = direction;
+      predictionTableDirections.slotid = 'none';
+      predictionTableDirections.grade = 'none';
+      predictionTableDirections.rank = 'none';
+      predictionTableDirections[key] = direction;
 
       const rows =
         Array.from(tbody.rows);
@@ -873,12 +872,17 @@
         if (leftText === '') return 1;
         if (rightText === '') return -1;
 
-        const difference =
-          Number(leftText) - Number(rightText);
+        const comparison = key === 'slotid'
+          ? leftText.localeCompare(
+              rightText,
+              'ja',
+              { numeric: true }
+            )
+          : Number(leftText) - Number(rightText);
 
         return direction === 'asc'
-          ? difference
-          : -difference;
+          ? comparison
+          : -comparison;
       });
 
       rows.forEach(row =>
@@ -902,13 +906,241 @@
     }
 
 
-    function formatProbability(value) {
+    function displayIslandMap(
+      shop,
+      data,
+      worstRanks
+    ) {
 
-      if (value === null || value === undefined) {
-        return '-';
+      const map =
+        document.getElementById('island-map');
+
+      map.hidden = true;
+
+      if (shop !== 'テキサス八木') {
+        return;
       }
 
-      return `1/${Number(value).toFixed(1)}`;
+      const rowsBySlot = new Map(
+        data.map(row => [
+          String(row.slotid),
+          row
+        ])
+      );
+
+      const topSlots =
+        Array.from(
+          { length: 14 },
+          (_, index) => 25 + index
+        );
+
+      const bottomSlots =
+        Array.from(
+          { length: 14 },
+          (_, index) => 82 - index
+        );
+
+      renderIslandSide(
+        'island-top',
+        topSlots,
+        rowsBySlot,
+        worstRanks
+      );
+
+      renderIslandSide(
+        'island-bottom',
+        bottomSlots,
+        rowsBySlot,
+        worstRanks
+      );
+
+      map.hidden = false;
+    }
+
+
+    function renderIslandSide(
+      elementId,
+      slotIds,
+      rowsBySlot,
+      worstRanks
+    ) {
+
+      const side =
+        document.getElementById(elementId);
+
+      side.innerHTML = '';
+
+      slotIds.forEach(slotId => {
+
+        const row =
+          rowsBySlot.get(String(slotId));
+
+        const machine =
+          document.createElement('button');
+
+        machine.type = 'button';
+        machine.className = 'island-machine';
+
+        if (!row) {
+          machine.disabled = true;
+          machine.classList.add(
+            'prediction-marginal'
+          );
+          appendIslandText(
+            machine,
+            slotId,
+            'island-slotid'
+          );
+          appendIslandText(
+            machine,
+            'データなし',
+            'island-grade'
+          );
+          side.appendChild(machine);
+          return;
+        }
+
+        const prediction =
+          getPredictionPresentation(
+            row.grade
+          );
+
+        const reasons =
+          Array.isArray(row.reasons)
+            ? row.reasons
+            : [];
+
+        const oldDay = reasons[0] || {};
+        const previousDay = reasons[1] || {};
+        const oldMedal =
+          oldDay.estimated_medal ??
+          oldDay.medal;
+        const previousMedal =
+          previousDay.estimated_medal ??
+          previousDay.medal;
+        const total =
+          oldMedal === null ||
+          oldMedal === undefined ||
+          previousMedal === null ||
+          previousMedal === undefined
+            ? null
+            : Number(oldMedal) +
+              Number(previousMedal);
+        const rank =
+          worstRanks.get(row.slotid);
+
+        machine.classList.add(
+          prediction.className
+        );
+
+        if (rank && rank <= 10) {
+          machine.classList.add('top-ranked');
+        }
+
+        machine.addEventListener(
+          'click',
+          () => {
+            document
+              .getElementById(
+                `prediction-slot-${row.slotid}`
+              )
+              ?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+              });
+          }
+        );
+
+        appendIslandText(
+          machine,
+          slotId,
+          'island-slotid'
+        );
+        appendIslandText(
+          machine,
+          prediction.label,
+          'island-grade'
+        );
+        appendIslandText(
+          machine,
+          total === null
+            ? '2日 -'
+            : `2日 ${formatSignedNumber(total)}`,
+          'island-medal'
+        );
+        appendIslandText(
+          machine,
+          rank ? `WORST ${rank}位` : '-',
+          'island-rank'
+        );
+
+        side.appendChild(machine);
+      });
+    }
+
+
+    function appendIslandText(
+      parent,
+      text,
+      className
+    ) {
+
+      const element =
+        document.createElement('span');
+
+      element.className = className;
+      element.textContent = text;
+      parent.appendChild(element);
+    }
+
+
+    function formatSignedNumber(value) {
+
+      const number = Number(value);
+
+      return number > 0
+        ? `+${number}`
+        : `${number}`;
+    }
+
+
+    function getPredictionPresentation(grade) {
+
+      const presentations = {
+        hold_misfire: {
+          label: '不発据え置き',
+          className: 'prediction-hold'
+        },
+        raise_candidate: {
+          label: '上げ候補',
+          className: 'prediction-raise'
+        },
+        avoid_recent_high: {
+          label: 'スルー',
+          className: 'prediction-avoid'
+        },
+        marginal: {
+          label: '保留',
+          className: 'prediction-marginal'
+        }
+      };
+
+      return presentations[grade] || {
+        label: grade || '',
+        className: ''
+      };
+    }
+
+
+    function appendCell(row, value) {
+
+      const cell =
+        document.createElement('td');
+
+      cell.textContent =
+        value ?? '';
+
+      row.appendChild(cell);
     }
 
 
@@ -924,6 +1156,10 @@
 
       document
         .getElementById('prediction-section')
+        .hidden = true;
+
+      document
+        .getElementById('island-map')
         .hidden = true;
     }
 
