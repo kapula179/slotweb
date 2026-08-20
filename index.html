@@ -236,13 +236,13 @@
           <th>
             <button class="sort-button" type="button"
               onclick="sortPredictionsByMedal('oldMedal', this)">
-              前々日差枚 ↕
+              前々日推定差枚 ↕
             </button>
           </th>
           <th>
             <button class="sort-button" type="button"
               onclick="sortPredictionsByMedal('previousMedal', this)">
-              前日差枚 ↕
+              前日推定差枚 ↕
             </button>
           </th>
         </tr>
@@ -601,6 +601,12 @@
 
         const oldDay = reasons[0] || {};
         const previousDay = reasons[1] || {};
+        const oldEstimatedMedal =
+          oldDay.estimated_medal ??
+          oldDay.medal;
+        const previousEstimatedMedal =
+          previousDay.estimated_medal ??
+          previousDay.medal;
         const prediction =
           getPredictionPresentation(
             row.grade
@@ -610,10 +616,10 @@
           document.createElement('tr');
 
         tr.dataset.oldMedal =
-          oldDay.medal ?? '';
+          oldEstimatedMedal ?? '';
 
         tr.dataset.previousMedal =
-          previousDay.medal ?? '';
+          previousEstimatedMedal ?? '';
 
         appendCell(tr, row.slotid);
         appendCell(tr, row.name);
@@ -658,11 +664,11 @@
         );
         appendMedalCell(
           tr,
-          oldDay.medal
+          oldEstimatedMedal
         );
         appendMedalCell(
           tr,
-          previousDay.medal
+          previousEstimatedMedal
         );
 
         tbody.appendChild(tr);

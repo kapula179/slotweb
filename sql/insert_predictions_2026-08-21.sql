@@ -16,7 +16,21 @@ with daily as (
     nullif(replace(trim(s.count::text), ',', ''), '')::numeric as spins,
     nullif(replace(trim(s.big::text), ',', ''), '')::numeric as big,
     nullif(replace(trim(s.reg::text), ',', ''), '')::numeric as reg,
-    nullif(replace(trim(s.medal::text), ',', ''), '')::numeric as medal,
+    round(
+      coalesce(
+        nullif(replace(trim(s.big::text), ',', ''), '')::numeric,
+        0
+      ) * 240
+      + coalesce(
+        nullif(replace(trim(s.reg::text), ',', ''), '')::numeric,
+        0
+      ) * 96
+      - coalesce(
+        nullif(replace(trim(s.count::text), ',', ''), '')::numeric,
+        0
+      ) * (50::numeric / 40),
+      0
+    ) as estimated_medal,
     case
       when nullif(replace(trim(s.reg::text), ',', ''), '')::numeric > 0
         then nullif(replace(trim(s.count::text), ',', ''), '')::numeric
@@ -42,13 +56,13 @@ two_days as (
     max(spins) filter (where data_day = date '2026-08-19') as spins_19,
     max(big) filter (where data_day = date '2026-08-19') as big_19,
     max(reg) filter (where data_day = date '2026-08-19') as reg_19,
-    max(medal) filter (where data_day = date '2026-08-19') as medal_19,
+    max(estimated_medal) filter (where data_day = date '2026-08-19') as estimated_medal_19,
     max(reg_denominator) filter (where data_day = date '2026-08-19') as reg_denominator_19,
 
     max(spins) filter (where data_day = date '2026-08-20') as spins_20,
     max(big) filter (where data_day = date '2026-08-20') as big_20,
     max(reg) filter (where data_day = date '2026-08-20') as reg_20,
-    max(medal) filter (where data_day = date '2026-08-20') as medal_20,
+    max(estimated_medal) filter (where data_day = date '2026-08-20') as estimated_medal_20,
     max(reg_denominator) filter (where data_day = date '2026-08-20') as reg_denominator_20,
     max(big_denominator) filter (where data_day = date '2026-08-20') as big_denominator_20
   from daily
@@ -120,14 +134,14 @@ select
       'day', '2026-08-19',
       'spins', spins_19,
       'reg_denominator', round(reg_denominator_19, 1),
-      'medal', medal_19
+      'estimated_medal', estimated_medal_19
     ),
     jsonb_build_object(
       'day', '2026-08-20',
       'spins', spins_20,
       'reg_denominator', round(reg_denominator_20, 1),
       'big_denominator', round(big_denominator_20, 1),
-      'medal', medal_20
+      'estimated_medal', estimated_medal_20
     )
   ) as reasons,
   'myjuggler_2day_v1' as model_version
