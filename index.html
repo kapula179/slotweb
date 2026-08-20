@@ -18,6 +18,27 @@
       margin-bottom: 16px;
     }
 
+    h2 {
+      font-size: 19px;
+      margin: 28px 0 10px;
+    }
+
+    .page-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .page-nav a {
+      color: #1565c0;
+      text-decoration: none;
+    }
+
+    .page-nav a[aria-current="page"] {
+      color: #222;
+      font-weight: bold;
+    }
+
     .filters {
       background: white;
       padding: 12px;
@@ -78,6 +99,35 @@
       color: blue;
     }
 
+    .prediction-label {
+      display: inline-block;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .prediction-hold {
+      color: #7a3e00;
+      background: #fff0d6;
+    }
+
+    .prediction-raise {
+      color: #9b1c1c;
+      background: #ffe2e2;
+    }
+
+    .prediction-avoid {
+      color: #555;
+      background: #e8e8e8;
+    }
+
+    .prediction-note {
+      color: #666;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
     @media (max-width: 600px) {
       body {
         margin: 8px;
@@ -102,6 +152,12 @@
 <body>
 
   <h1>スロットデータ</h1>
+
+  <nav class="page-nav" aria-label="実装の切り替え">
+    <a href="index.html" aria-current="page">JavaScript</a>
+    <a href="vue.html">Vue</a>
+    <a href="react.html">React</a>
+  </nav>
 
   <div class="filters">
 
@@ -144,6 +200,31 @@
 
     <tbody id="slot-data"></tbody>
   </table>
+
+  <section id="prediction-section" hidden>
+    <h2 id="prediction-title">翌日予想</h2>
+    <div id="prediction-info" class="result-info"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>台番</th>
+          <th>機種</th>
+          <th>判定</th>
+          <th>点数</th>
+          <th>前々日REG</th>
+          <th>前日REG</th>
+          <th>前日BIG</th>
+          <th>前日回転</th>
+        </tr>
+      </thead>
+      <tbody id="prediction-data"></tbody>
+    </table>
+
+    <p class="prediction-note">
+      過去データに基づく参考情報であり、実際の設定や結果を保証するものではありません。
+    </p>
+  </section>
 
   <script>
     const SUPABASE_URL =
@@ -372,11 +453,254 @@
       );
 
 
+      try {
+        await loadPredictions(
+          shop,
+          day,
+          name
+        );
+      } catch (error) {
+        console.error(
+          '予想データ取得エラー:',
+          error
+        );
+      }
+
+
       updateUrl(
         shop,
         day,
         name
       );
+    }
+
+
+    function getNextDay(day) {
+
+      const parts =
+        day.split('-').map(Number);
+
+      const date = new Date(Date.UTC(
+        parts[0],
+        parts[1] - 1,
+        parts[2] + 1
+      ));
+
+      return date
+        .toISOString()
+        .slice(0, 10);
+    }
+
+
+    async function loadPredictions(
+      shop,
+      sourceDay,
+      name
+    ) {
+
+      clearPredictions();
+
+      if (!shop || !sourceDay) {
+        return;
+      }
+
+      const predictionDay =
+        getNextDay(sourceDay);
+
+      let url =
+        `${SUPABASE_URL}/rest/v1/predictions` +
+        `?select=slotid,name,score,grade,reasons` +
+        `&shopid=eq.${encodeURIComponent(shop)}` +
+        `&prediction_day=eq.${predictionDay}` +
+        `&model_version=eq.myjuggler_2day_v1`;
+
+      if (name) {
+        url +=
+          `&name=eq.${encodeURIComponent(name)}`;
+      }
+
+      url +=
+        `&order=score.desc,slotid.asc`;
+
+      const data =
+        await fetchJson(url);
+
+      if (!data.length) {
+        return;
+      }
+
+      displayPredictions(
+        data,
+        predictionDay
+      );
+    }
+
+
+    function displayPredictions(
+      data,
+      predictionDay
+    ) {
+
+      const section =
+        document.getElementById(
+          'prediction-section'
+        );
+
+      const tbody =
+        document.getElementById(
+          'prediction-data'
+        );
+
+      const counts = {
+        hold_misfire: 0,
+        raise_candidate: 0,
+        avoid_recent_high: 0
+      };
+
+      tbody.innerHTML = '';
+
+      data.forEach(row => {
+
+        if (counts[row.grade] !== undefined) {
+          counts[row.grade]++;
+        }
+
+        const reasons =
+          Array.isArray(row.reasons)
+            ? row.reasons
+            : [];
+
+        const oldDay = reasons[0] || {};
+        const previousDay = reasons[1] || {};
+        const prediction =
+          getPredictionPresentation(
+            row.grade
+          );
+
+        const tr =
+          document.createElement('tr');
+
+        appendCell(tr, row.slotid);
+        appendCell(tr, row.name);
+
+        const labelCell =
+          document.createElement('td');
+
+        const label =
+          document.createElement('span');
+
+        label.className =
+          `prediction-label ${prediction.className}`;
+
+        label.textContent =
+          prediction.label;
+
+        labelCell.appendChild(label);
+        tr.appendChild(labelCell);
+
+        appendCell(tr, row.score);
+        appendCell(
+          tr,
+          formatProbability(
+            oldDay.reg_denominator
+          )
+        );
+        appendCell(
+          tr,
+          formatProbability(
+            previousDay.reg_denominator
+          )
+        );
+        appendCell(
+          tr,
+          formatProbability(
+            previousDay.big_denominator
+          )
+        );
+        appendCell(
+          tr,
+          previousDay.spins
+        );
+
+        tbody.appendChild(tr);
+      });
+
+      document
+        .getElementById('prediction-title')
+        .textContent =
+          `${predictionDay} 翌日予想`;
+
+      document
+        .getElementById('prediction-info')
+        .textContent =
+          `${data.length}台 / ` +
+          `据え置き ${counts.hold_misfire}台 / ` +
+          `上げ ${counts.raise_candidate}台 / ` +
+          `回避 ${counts.avoid_recent_high}台`;
+
+      section.hidden = false;
+    }
+
+
+    function getPredictionPresentation(grade) {
+
+      const presentations = {
+        hold_misfire: {
+          label: '不発据え置き',
+          className: 'prediction-hold'
+        },
+        raise_candidate: {
+          label: '上げ候補',
+          className: 'prediction-raise'
+        },
+        avoid_recent_high: {
+          label: '回避候補',
+          className: 'prediction-avoid'
+        }
+      };
+
+      return presentations[grade] || {
+        label: grade || '',
+        className: ''
+      };
+    }
+
+
+    function appendCell(row, value) {
+
+      const cell =
+        document.createElement('td');
+
+      cell.textContent =
+        value ?? '';
+
+      row.appendChild(cell);
+    }
+
+
+    function formatProbability(value) {
+
+      if (value === null || value === undefined) {
+        return '-';
+      }
+
+      return `1/${Number(value).toFixed(1)}`;
+    }
+
+
+    function clearPredictions() {
+
+      document
+        .getElementById('prediction-data')
+        .innerHTML = '';
+
+      document
+        .getElementById('prediction-info')
+        .textContent = '';
+
+      document
+        .getElementById('prediction-section')
+        .hidden = true;
     }
 
 
@@ -456,6 +780,8 @@
       document
         .getElementById('result-info')
         .textContent = '';
+
+      clearPredictions();
     }
 
 

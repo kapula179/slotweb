@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slot Data - React</title>
+  <style>
+    body { font-family: sans-serif; margin: 12px; background: #f5f5f5; } h1 { font-size: 22px; margin-bottom: 16px; }
+    nav { display:flex; gap:8px; margin-bottom:12px } nav a { color:#1565c0; text-decoration:none } nav a[aria-current="page"] { color:#222; font-weight:bold }
+    .filters { background:white; padding:12px; margin-bottom:12px; border-radius:8px } .filter-row { margin-bottom:10px } .filter-row:last-child { margin-bottom:0 }
+    label { display:inline-block; width:50px; font-weight:bold } select { font-size:16px; padding:7px; width:calc(100% - 60px); max-width:350px }
+    .result-info { margin:10px 0; font-size:14px } .error { color:#c62828 } table { width:100%; border-collapse:collapse; background:white; font-size:14px }
+    th,td { border:1px solid #ccc; padding:7px 3px; text-align:center; white-space:nowrap } th { background:#eee } .positive { color:red } .negative { color:blue }
+    @media(max-width:600px){body{margin:8px}h1{font-size:20px}table{font-size:12px}th,td{padding:6px 2px}}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useEffect, useState } = React;
+    const API = 'https://cbakwimqxhfbqdnvyeoi.supabase.co/rest/v1';
+    const KEY = 'sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm';
+    const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+    async function get(path) { const r = await fetch(`${API}/${path}`, { headers }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+    const optionList = values => values.map(value => <option key={value} value={value}>{value}</option>);
+
+    function App() {
+      const params = new URLSearchParams(location.search);
+      const [shops,setShops]=useState([]), [days,setDays]=useState([]), [names,setNames]=useState([]), [rows,setRows]=useState([]);
+      const [shop,setShop]=useState(params.get('shop')||''), [day,setDay]=useState(params.get('day')||''), [name,setName]=useState(params.get('name')||''), [error,setError]=useState('');
+      const request = async fn => { setError(''); try { await fn(); } catch(e) { console.error(e); setError('データ取得に失敗しました。'); } };
+      const updateUrl = (s=shop,d=day,n=name) => { const p=new URLSearchParams(); if(s)p.set('shop',s);if(d)p.set('day',d);if(n)p.set('name',n);history.replaceState(null,'',`${location.pathname}${p.size?`?${p}`:''}`); };
+      const loadDays = async s => setDays((await get(`shop_day_list?select=day&shopid=eq.${encodeURIComponent(s)}&order=day.desc`)).map(x=>x.day).filter(Boolean));
+      const loadNames = async (s,d) => setNames((await get(`shop_day_name_list?select=name&shopid=eq.${encodeURIComponent(s)}&day=eq.${encodeURIComponent(d)}&order=name`)).map(x=>x.name).filter(Boolean));
+      const loadData = async (s=shop,d=day,n=name) => { let p=`slot?select=slotid,big,reg,count,medal,rank&shopid=eq.${encodeURIComponent(s)}&day=eq.${encodeURIComponent(d)}`;if(n)p+=`&name=eq.${encodeURIComponent(n)}`;setRows(await get(`${p}&order=slotid`));updateUrl(s,d,n); };
+      useEffect(() => { request(async()=>{setShops((await get('shop_list?select=shopid&order=shopid')).map(x=>x.shopid).filter(Boolean));if(shop)await loadDays(shop);if(shop&&day)await loadNames(shop,day);if(shop&&day)await loadData(shop,day,name);}); }, []);
+      const shopChanged = e => request(async()=>{const s=e.target.value;setShop(s);setDay('');setName('');setDays([]);setNames([]);setRows([]);updateUrl(s,'','');if(s)await loadDays(s);});
+      const dayChanged = e => request(async()=>{const d=e.target.value;setDay(d);setName('');setNames([]);setRows([]);updateUrl(shop,d,'');if(d){await loadNames(shop,d);await loadData(shop,d,'');}});
+      const nameChanged = e => request(async()=>{const n=e.target.value;setName(n);await loadData(shop,day,n);});
+      const info = rows.length ? `${rows.length}台 / ${shop} / ${day}${name?` / ${name}`:''}` : '';
+      return <>
+        <h1>スロットデータ <small>(React)</small></h1>
+        <nav aria-label="実装の切り替え"><a href="index.html">JavaScript</a><a href="vue.html">Vue</a><a href="react.html" aria-current="page">React</a></nav>
+        <div className="filters">
+          <div className="filter-row"><label htmlFor="shop">店舗</label><select id="shop" value={shop} onChange={shopChanged}><option value="">選択してください</option>{optionList(shops)}</select></div>
+          <div className="filter-row"><label htmlFor="day">日付</label><select id="day" value={day} disabled={!shop} onChange={dayChanged}><option value="">選択してください</option>{optionList(days)}</select></div>
+          <div className="filter-row"><label htmlFor="name">機種</label><select id="name" value={name} disabled={!day} onChange={nameChanged}><option value="">全機種</option>{optionList(names)}</select></div>
+        </div>
+        <div className={`result-info ${error?'error':''}`}>{error||info}</div>
+        <table><thead><tr><th>台番</th><th>BIG</th><th>REG</th><th>回転</th><th>差枚</th><th>RANK</th></tr></thead><tbody>
+          {rows.map((r,i)=><tr key={`${r.slotid}-${i}`}><td>{r.slotid??''}</td><td>{r.big??''}</td><td>{r.reg??''}</td><td>{r.count??''}</td><td className={r.medal>0?'positive':r.medal<0?'negative':''}>{r.medal==null?'':r.medal>0?`+${r.medal}`:r.medal}</td><td>{r.rank??''}</td></tr>)}
+        </tbody></table>
+      </>;
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

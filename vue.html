@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slot Data - Vue</title>
+  <style>
+    body { font-family: sans-serif; margin: 12px; background: #f5f5f5; }
+    h1 { font-size: 22px; margin-bottom: 16px; }
+    nav { display: flex; gap: 8px; margin-bottom: 12px; }
+    nav a { color: #1565c0; text-decoration: none; }
+    nav a[aria-current="page"] { color: #222; font-weight: bold; }
+    .filters { background: white; padding: 12px; margin-bottom: 12px; border-radius: 8px; }
+    .filter-row { margin-bottom: 10px; }
+    .filter-row:last-child { margin-bottom: 0; }
+    label { display: inline-block; width: 50px; font-weight: bold; }
+    select { font-size: 16px; padding: 7px; width: calc(100% - 60px); max-width: 350px; }
+    .result-info { margin: 10px 0; font-size: 14px; }
+    .error { color: #c62828; }
+    table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
+    th, td { border: 1px solid #ccc; padding: 7px 3px; text-align: center; white-space: nowrap; }
+    th { background: #eee; }
+    .positive { color: red; }
+    .negative { color: blue; }
+    @media (max-width: 600px) {
+      body { margin: 8px; }
+      h1 { font-size: 20px; }
+      table { font-size: 12px; }
+      th, td { padding: 6px 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>スロットデータ <small>(Vue)</small></h1>
+    <nav aria-label="実装の切り替え">
+      <a href="index.html">JavaScript</a>
+      <a href="vue.html" aria-current="page">Vue</a>
+      <a href="react.html">React</a>
+    </nav>
+    <div class="filters">
+      <div class="filter-row">
+        <label for="shop">店舗</label>
+        <select id="shop" v-model="shop" @change="changeShop">
+          <option value="">選択してください</option>
+          <option v-for="value in shops" :key="value" :value="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <label for="day">日付</label>
+        <select id="day" v-model="day" :disabled="!shop" @change="changeDay">
+          <option value="">選択してください</option>
+          <option v-for="value in days" :key="value" :value="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <label for="name">機種</label>
+        <select id="name" v-model="name" :disabled="!day" @change="loadData">
+          <option value="">全機種</option>
+          <option v-for="value in names" :key="value" :value="value">{{ value }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="result-info" :class="{ error }">{{ error || info }}</div>
+    <table>
+      <thead><tr><th>台番</th><th>BIG</th><th>REG</th><th>回転</th><th>差枚</th><th>RANK</th></tr></thead>
+      <tbody>
+        <tr v-for="row in rows" :key="row.slotid">
+          <td>{{ row.slotid ?? '' }}</td><td>{{ row.big ?? '' }}</td><td>{{ row.reg ?? '' }}</td>
+          <td>{{ row.count ?? '' }}</td><td :class="medalClass(row.medal)">{{ medalText(row.medal) }}</td>
+          <td>{{ row.rank ?? '' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script>
+    const API = 'https://cbakwimqxhfbqdnvyeoi.supabase.co/rest/v1';
+    const KEY = 'sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm';
+    const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+    const get = async path => {
+      const response = await fetch(`${API}/${path}`, { headers });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+    Vue.createApp({
+      data: () => ({ shops: [], days: [], names: [], rows: [], shop: '', day: '', name: '', error: '' }),
+      computed: {
+        info() { return this.rows.length ? `${this.rows.length}台 / ${this.shop} / ${this.day}${this.name ? ` / ${this.name}` : ''}` : ''; }
+      },
+      methods: {
+        async run(task) { this.error = ''; try { await task(); } catch (e) { console.error(e); this.error = 'データ取得に失敗しました。'; } },
+        async changeShop() {
+          this.day = ''; this.name = ''; this.days = []; this.names = []; this.rows = []; this.updateUrl();
+          if (this.shop) this.days = (await get(`shop_day_list?select=day&shopid=eq.${encodeURIComponent(this.shop)}&order=day.desc`)).map(x => x.day).filter(Boolean);
+        },
+        async changeDay() {
+          this.name = ''; this.names = []; this.rows = [];
+          if (!this.day) return this.updateUrl();
+          this.names = (await get(`shop_day_name_list?select=name&shopid=eq.${encodeURIComponent(this.shop)}&day=eq.${encodeURIComponent(this.day)}&order=name`)).map(x => x.name).filter(Boolean);
+          await this.loadData();
+        },
+        async loadData() {
+          if (!this.shop || !this.day) return;
+          let path = `slot?select=slotid,big,reg,count,medal,rank&shopid=eq.${encodeURIComponent(this.shop)}&day=eq.${encodeURIComponent(this.day)}`;
+          if (this.name) path += `&name=eq.${encodeURIComponent(this.name)}`;
+          this.rows = await get(`${path}&order=slotid`); this.updateUrl();
+        },
+        updateUrl() {
+          const p = new URLSearchParams();
+          if (this.shop) p.set('shop', this.shop); if (this.day) p.set('day', this.day); if (this.name) p.set('name', this.name);
+          history.replaceState(null, '', `${location.pathname}${p.size ? `?${p}` : ''}`);
+        },
+        medalClass(value) { return value > 0 ? 'positive' : value < 0 ? 'negative' : ''; },
+        medalText(value) { return value == null ? '' : value > 0 ? `+${value}` : value; }
+      },
+      async mounted() {
+        await this.run(async () => {
+          this.shops = (await get('shop_list?select=shopid&order=shopid')).map(x => x.shopid).filter(Boolean);
+          const p = new URLSearchParams(location.search); this.shop = p.get('shop') || '';
+          if (this.shop) { await this.changeShop(); this.day = p.get('day') || ''; }
+          if (this.day) { await this.changeDay(); this.name = p.get('name') || ''; await this.loadData(); }
+        });
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
