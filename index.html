@@ -122,6 +122,12 @@
       background: #e8e8e8;
     }
 
+    .prediction-marginal {
+      color: #5f6368;
+      background: #f1f3f4;
+      border: 1px dashed #aaa;
+    }
+
     .prediction-note {
       color: #666;
       font-size: 12px;
@@ -228,21 +234,27 @@
           <th>台番</th>
           <th>機種</th>
           <th>判定</th>
-          <th>点数</th>
+          <th>ワースト順位</th>
           <th>前々日REG</th>
           <th>前日REG</th>
           <th>前日BIG</th>
           <th>前日回転</th>
           <th>
             <button class="sort-button" type="button"
-              onclick="sortPredictionsByMedal('oldMedal', this)">
+              onclick="sortPredictions('oldMedal', this)">
               前々日推定差枚 ↕
             </button>
           </th>
           <th>
             <button class="sort-button" type="button"
-              onclick="sortPredictionsByMedal('previousMedal', this)">
+              onclick="sortPredictions('previousMedal', this)">
               前日推定差枚 ↕
+            </button>
+          </th>
+          <th>
+            <button class="sort-button" type="button"
+              onclick="sortPredictions('twoDayMedal', this)">
+              2日合計推定差枚 ↑
             </button>
           </th>
         </tr>
@@ -583,12 +595,60 @@
       const counts = {
         hold_misfire: 0,
         raise_candidate: 0,
-        avoid_recent_high: 0
+        avoid_recent_high: 0,
+        marginal: 0
       };
+
+      const rankedRows =
+        data
+          .map(row => {
+            const reasons =
+              Array.isArray(row.reasons)
+                ? row.reasons
+                : [];
+            const oldDay = reasons[0] || {};
+            const previousDay = reasons[1] || {};
+            const oldMedal =
+              oldDay.estimated_medal ??
+              oldDay.medal;
+            const previousMedal =
+              previousDay.estimated_medal ??
+              previousDay.medal;
+
+            return {
+              row,
+              twoDayMedal:
+                oldMedal === null ||
+                oldMedal === undefined ||
+                previousMedal === null ||
+                previousMedal === undefined
+                  ? null
+                  : Number(oldMedal) +
+                    Number(previousMedal)
+            };
+          })
+          .sort((left, right) => {
+            if (left.twoDayMedal === null) return 1;
+            if (right.twoDayMedal === null) return -1;
+            return left.twoDayMedal - right.twoDayMedal;
+          });
+
+      const worstRanks = new Map();
+
+      rankedRows.forEach((item, index) => {
+        if (item.twoDayMedal !== null) {
+          worstRanks.set(
+            item.row.slotid,
+            index + 1
+          );
+        }
+      });
 
       tbody.innerHTML = '';
 
-      data.forEach(row => {
+      rankedRows
+        .map(item => item.row)
+        .forEach(row => {
 
         if (counts[row.grade] !== undefined) {
           counts[row.grade]++;
@@ -607,6 +667,14 @@
         const previousEstimatedMedal =
           previousDay.estimated_medal ??
           previousDay.medal;
+        const twoDayEstimatedMedal =
+          oldEstimatedMedal === null ||
+          oldEstimatedMedal === undefined ||
+          previousEstimatedMedal === null ||
+          previousEstimatedMedal === undefined
+            ? null
+            : Number(oldEstimatedMedal) +
+              Number(previousEstimatedMedal);
         const prediction =
           getPredictionPresentation(
             row.grade
@@ -620,6 +688,9 @@
 
         tr.dataset.previousMedal =
           previousEstimatedMedal ?? '';
+
+        tr.dataset.twoDayMedal =
+          twoDayEstimatedMedal ?? '';
 
         appendCell(tr, row.slotid);
         appendCell(tr, row.name);
@@ -639,7 +710,10 @@
         labelCell.appendChild(label);
         tr.appendChild(labelCell);
 
-        appendCell(tr, row.score);
+        appendCell(
+          tr,
+          worstRanks.get(row.slotid)
+        );
         appendCell(
           tr,
           formatProbability(
@@ -670,6 +744,10 @@
           tr,
           previousEstimatedMedal
         );
+        appendMedalCell(
+          tr,
+          twoDayEstimatedMedal
+        );
 
         tbody.appendChild(tr);
       });
@@ -685,7 +763,8 @@
           `${data.length}台 / ` +
           `据え置き ${counts.hold_misfire}台 / ` +
           `上げ ${counts.raise_candidate}台 / ` +
-          `回避 ${counts.avoid_recent_high}台`;
+          `回避 ${counts.avoid_recent_high}台 / ` +
+          `保留 ${counts.marginal}台`;
 
       section.hidden = false;
     }
@@ -705,6 +784,10 @@
         avoid_recent_high: {
           label: '回避候補',
           className: 'prediction-avoid'
+        },
+        marginal: {
+          label: '判定保留',
+          className: 'prediction-marginal'
         }
       };
 
@@ -753,11 +836,12 @@
 
     const predictionSortDirections = {
       oldMedal: 'none',
-      previousMedal: 'none'
+      previousMedal: 'none',
+      twoDayMedal: 'asc'
     };
 
 
-    function sortPredictionsByMedal(
+    function sortPredictions(
       key,
       button
     ) {
@@ -774,6 +858,7 @@
 
       predictionSortDirections.oldMedal = 'none';
       predictionSortDirections.previousMedal = 'none';
+      predictionSortDirections.twoDayMedal = 'none';
       predictionSortDirections[key] = direction;
 
       const rows =

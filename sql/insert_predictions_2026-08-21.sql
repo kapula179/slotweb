@@ -5,7 +5,8 @@
 --   1. 前日がREG 1/300以下、BIG 1/300以上 → 不発据え置き候補
 --   2. 2日間のいずれかがREG 1/300以下 → 回避候補
 --   3. 2日間ともREG 1/300超       → 上げ候補
--- 各日の回転数が5,000未満なら、その日の判定には使用しない。
+--   4. 上記以外                         → 判定保留
+-- 前日に存在するマイジャグラーは全台保存する。
 
 with daily as (
   select
@@ -98,7 +99,7 @@ classified as (
         and (reg_20 = 0 or reg_denominator_20 > 300)
         then 'raise_candidate'
 
-      else null
+      else 'marginal'
     end as prediction_type
   from two_days
   -- 台の入れ替えを避けるため、前日にも存在する台だけを対象にする。
@@ -122,11 +123,10 @@ select
   shopid,
   slotid,
   name,
-  case prediction_type
-    when 'hold_misfire' then 100
-    when 'raise_candidate' then 50
-    when 'avoid_recent_high' then 0
-  end as score,
+  -(
+    coalesce(estimated_medal_19, 0)
+    + coalesce(estimated_medal_20, 0)
+  ) as score,
   null as positive_probability,
   prediction_type as grade,
   jsonb_build_array(
@@ -146,7 +146,6 @@ select
   ) as reasons,
   'myjuggler_2day_v1' as model_version
 from classified
-where prediction_type is not null
 on conflict (prediction_day, shopid, slotid, model_version)
 do update set
   source_through_day = excluded.source_through_day,
