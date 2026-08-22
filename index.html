@@ -154,7 +154,6 @@
     .island-map {
       margin: 16px 0 22px;
       padding: 14px;
-      overflow-x: auto;
       background: #fff;
       border-radius: 8px;
     }
@@ -169,6 +168,57 @@
       grid-template-columns: repeat(14, minmax(74px, 1fr));
       gap: 5px;
       min-width: 1100px;
+    }
+
+    .island-detail {
+      overflow-x: auto;
+    }
+
+    .island-detail-label {
+      margin: 0 0 6px;
+      color: #666;
+      font-size: 12px;
+    }
+
+    .island-mini {
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    .island-mini-label {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .island-mini-side {
+      display: grid;
+      gap: 2px;
+      width: 100%;
+    }
+
+    .island-mini-aisle {
+      padding: 5px 0;
+      color: #777;
+      text-align: center;
+      font-size: 9px;
+      letter-spacing: 0.25em;
+    }
+
+    .island-mini-machine {
+      min-width: 0;
+      padding: 6px 0;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      color: #222;
+      font-size: 10px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .island-mini-machine.top-ranked {
+      border-color: #d49b00;
+      box-shadow: 0 0 0 1px #d49b00 inset;
     }
 
     .island-aisle {
@@ -236,6 +286,14 @@
       td {
         padding: 6px 2px;
       }
+
+      .island-map {
+        padding: 10px 6px;
+      }
+
+      .island-mini {
+        display: block;
+      }
     }
   </style>
 </head>
@@ -298,9 +356,20 @@
 
     <div id="island-map" class="island-map" hidden>
       <h3 id="island-title">マイジャグラー島</h3>
-      <div id="island-top" class="island-side"></div>
-      <div id="island-aisle" class="island-aisle">通路</div>
-      <div id="island-bottom" class="island-side"></div>
+
+      <div id="island-mini" class="island-mini">
+        <p class="island-mini-label">全体ミニ島図</p>
+        <div id="island-mini-top" class="island-mini-side"></div>
+        <div id="island-mini-aisle" class="island-mini-aisle">通路</div>
+        <div id="island-mini-bottom" class="island-mini-side"></div>
+      </div>
+
+      <div class="island-detail">
+        <p class="island-detail-label">詳細島図（横スクロールできます）</p>
+        <div id="island-top" class="island-side"></div>
+        <div id="island-aisle" class="island-aisle">通路</div>
+        <div id="island-bottom" class="island-side"></div>
+      </div>
     </div>
 
     <table>
@@ -963,6 +1032,13 @@
         worstRanks
       );
 
+      renderMiniIslandSide(
+        'island-mini-top',
+        layout.top,
+        rowsBySlot,
+        worstRanks
+      );
+
       const aisle =
         document.getElementById(
           'island-aisle'
@@ -971,6 +1047,16 @@
       const bottom =
         document.getElementById(
           'island-bottom'
+        );
+
+      const miniAisle =
+        document.getElementById(
+          'island-mini-aisle'
+        );
+
+      const miniBottom =
+        document.getElementById(
+          'island-mini-bottom'
         );
 
       if (layout.bottom) {
@@ -983,13 +1069,82 @@
           rowsBySlot,
           worstRanks
         );
+
+        miniAisle.hidden = false;
+        miniBottom.hidden = false;
+
+        renderMiniIslandSide(
+          'island-mini-bottom',
+          layout.bottom,
+          rowsBySlot,
+          worstRanks
+        );
       } else {
         aisle.hidden = true;
         bottom.hidden = true;
         bottom.innerHTML = '';
+        miniAisle.hidden = true;
+        miniBottom.hidden = true;
+        miniBottom.innerHTML = '';
       }
 
       map.hidden = false;
+    }
+
+
+    function renderMiniIslandSide(
+      elementId,
+      slotIds,
+      rowsBySlot,
+      worstRanks
+    ) {
+
+      const side =
+        document.getElementById(elementId);
+
+      side.innerHTML = '';
+      side.style.gridTemplateColumns =
+        `repeat(${slotIds.length}, minmax(0, 1fr))`;
+
+      slotIds.forEach(slotId => {
+
+        const row =
+          rowsBySlot.get(String(slotId));
+
+        const machine =
+          document.createElement('span');
+
+        machine.className =
+          'island-mini-machine';
+
+        machine.textContent = slotId;
+
+        if (row) {
+          const prediction =
+            getPredictionPresentation(
+              row.grade
+            );
+
+          machine.classList.add(
+            prediction.className
+          );
+
+          const rank =
+            worstRanks.get(row.slotid);
+
+          if (rank && rank <= 10) {
+            machine.classList.add(
+              'top-ranked'
+            );
+          }
+        } else {
+          machine.classList.add(
+            'prediction-marginal'
+          );
+        }
+
+        side.appendChild(machine);
+      });
     }
 
 
