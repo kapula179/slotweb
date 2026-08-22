@@ -67,6 +67,38 @@
       max-width: 350px;
     }
 
+    .day-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: calc(100% - 60px);
+      max-width: 440px;
+      vertical-align: middle;
+    }
+
+    .day-controls select {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+    }
+
+    .day-navigation-button {
+      flex: 0 0 auto;
+      padding: 7px 11px;
+      border: 1px solid #94a3b8;
+      border-radius: 6px;
+      background: #fff;
+      color: #334155;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .day-navigation-button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
     .result-info {
       margin: 10px 0;
       font-size: 14px;
@@ -154,6 +186,98 @@
 
     .rank-row-6 td {
       background: transparent;
+    }
+
+    .view-switcher {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+
+    .view-button {
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #fff;
+      color: #334155;
+      padding: 7px 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .view-button.active {
+      border-color: #2563eb;
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .week-scroll {
+      overflow-x: auto;
+      border: 1px solid #dbe3ec;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .week-table {
+      min-width: 800px;
+      margin: 0;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .week-table th,
+    .week-table td {
+      min-width: 102px;
+      padding: 8px 6px;
+      text-align: center;
+      border-right: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .week-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #edf2f7;
+    }
+
+    .week-table .week-slot-column {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      min-width: 64px;
+      background: #f8fafc;
+      font-weight: bold;
+    }
+
+    .week-table thead .week-slot-column {
+      z-index: 3;
+      background: #e2e8f0;
+    }
+
+    .week-cell-rank {
+      display: block;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .week-cell-medal {
+      display: block;
+      margin-top: 3px;
+      font-size: 13px;
+    }
+
+    .week-rank-4 { background: #d9f3fa; }
+    .week-rank-5 { background: #ffe0e0; }
+    .week-rank-6 {
+      background: linear-gradient(135deg, #ffd6d6, #fff0b8, #d8f3dc, #d5ecff, #eadcff);
+    }
+
+    .week-empty { color: #94a3b8; }
+
+    .week-note {
+      margin: 8px 2px 18px;
+      color: #64748b;
+      font-size: 12px;
     }
 
     .prediction-label {
@@ -375,9 +499,13 @@
 
     <div class="filter-row">
       <label for="day-select">日付</label>
-      <select id="day-select" disabled>
-        <option value="">選択してください</option>
-      </select>
+      <span class="day-controls">
+        <select id="day-select" disabled>
+          <option value="">選択してください</option>
+        </select>
+        <button id="previous-day-button" class="day-navigation-button" type="button" disabled>← 前日</button>
+        <button id="next-day-button" class="day-navigation-button" type="button" disabled>翌日 →</button>
+      </span>
     </div>
 
     <div class="filter-row">
@@ -389,9 +517,15 @@
 
   </div>
 
-  <div id="result-info" class="result-info"></div>
+  <div class="view-switcher" aria-label="表示期間">
+    <button id="single-view-button" class="view-button active" type="button">単日表示</button>
+    <button id="weekly-view-button" class="view-button" type="button">7日間表示</button>
+  </div>
 
-  <table>
+  <section id="single-view">
+    <div id="result-info" class="result-info"></div>
+
+    <table>
     <thead>
       <tr>
         <th>台番</th>
@@ -404,7 +538,20 @@
     </thead>
 
     <tbody id="slot-data"></tbody>
-  </table>
+    </table>
+  </section>
+
+  <section id="weekly-view" hidden>
+    <h2>過去7日間</h2>
+    <div id="weekly-info" class="result-info"></div>
+    <div class="week-scroll">
+      <table class="week-table">
+        <thead><tr id="weekly-head"></tr></thead>
+        <tbody id="weekly-data"></tbody>
+      </table>
+    </div>
+    <p class="week-note">最新日が左です。横にスクロールすると古い日付を確認できます。</p>
+  </section>
 
   <section id="prediction-section" hidden>
     <h2 id="prediction-title">翌日予想</h2>
@@ -471,6 +618,8 @@
       apikey: SUPABASE_KEY,
       Authorization: `Bearer ${SUPABASE_KEY}`
     };
+
+    let currentView = 'single';
 
 
     async function fetchJson(url) {
@@ -586,6 +735,7 @@
       );
 
       daySelect.disabled = false;
+      updateDayNavigationButtons();
     }
 
 
@@ -630,6 +780,225 @@
       );
 
       nameSelect.disabled = false;
+    }
+
+
+    function getPreviousDays(day, count) {
+      const [year, month, date] = day.split('-').map(Number);
+      const base = new Date(Date.UTC(year, month - 1, date));
+
+      return Array.from({ length: count }, (_, index) => {
+        const target = new Date(base);
+        target.setUTCDate(base.getUTCDate() - index);
+        return target.toISOString().slice(0, 10);
+      });
+    }
+
+
+    function updateDayNavigationButtons() {
+      const daySelect = document.getElementById('day-select');
+      const previousButton = document.getElementById('previous-day-button');
+      const nextButton = document.getElementById('next-day-button');
+      const hasOlderDay =
+        daySelect.value &&
+        daySelect.selectedIndex > 0 &&
+        daySelect.selectedIndex < daySelect.options.length - 1;
+      const hasNewerDay =
+        daySelect.value &&
+        daySelect.selectedIndex > 1;
+      const hidden = currentView !== 'single';
+
+      previousButton.disabled = hidden || !hasOlderDay;
+      nextButton.disabled = hidden || !hasNewerDay;
+      previousButton.hidden = hidden;
+      nextButton.hidden = hidden;
+    }
+
+
+    async function moveDay(optionOffset) {
+      const daySelect = document.getElementById('day-select');
+      const targetIndex = daySelect.selectedIndex + optionOffset;
+
+      if (
+        !daySelect.value ||
+        targetIndex < 1 ||
+        targetIndex >= daySelect.options.length
+      ) {
+        updateDayNavigationButtons();
+        return;
+      }
+
+      const shop = document.getElementById('shop-select').value;
+      const nameSelect = document.getElementById('name-select');
+      const currentName = nameSelect.value;
+
+      daySelect.selectedIndex = targetIndex;
+      await loadNames(shop, daySelect.value);
+
+      if (
+        currentName &&
+        [...nameSelect.options].some(option => option.value === currentName)
+      ) {
+        nameSelect.value = currentName;
+      }
+
+      updateDayNavigationButtons();
+      await loadData();
+    }
+
+
+    const goToPreviousDay = () => moveDay(1);
+    const goToNextDay = () => moveDay(-1);
+
+
+    function formatShortDay(day) {
+      const [, month, date] = day.split('-');
+      return `${Number(month)}/${Number(date)}`;
+    }
+
+
+    function calculateEstimatedMedal(row) {
+      const big = Number(row.big);
+      const reg = Number(row.reg);
+      const count = Number(row.count);
+
+      if (![big, reg, count].every(Number.isFinite)) {
+        return null;
+      }
+
+      return Math.round(big * 240 + reg * 96 - count * 1.25);
+    }
+
+
+    function setWeeklyMessage(message) {
+      document.getElementById('weekly-info').textContent = message;
+    }
+
+
+    function clearWeeklyData(message = '') {
+      document.getElementById('weekly-head').innerHTML = '';
+      document.getElementById('weekly-data').innerHTML = '';
+      setWeeklyMessage(message);
+    }
+
+
+    async function loadWeeklyData() {
+      const shop = document.getElementById('shop-select').value;
+      const day = document.getElementById('day-select').value;
+      const name = document.getElementById('name-select').value;
+
+      if (!shop || !day) {
+        clearWeeklyData('店舗と基準日を選択してください。');
+        return;
+      }
+
+      if (!name) {
+        clearWeeklyData('7日間表示では機種を選択してください。');
+        return;
+      }
+
+      setWeeklyMessage('7日間のデータを読み込み中…');
+      const days = getPreviousDays(day, 7);
+      const url =
+        `${SUPABASE_URL}/rest/v1/slot` +
+        `?select=day,slotid,name,big,reg,count,rank` +
+        `&shopid=eq.${encodeURIComponent(shop)}` +
+        `&name=eq.${encodeURIComponent(name)}` +
+        `&day=gte.${days[days.length - 1]}` +
+        `&day=lte.${days[0]}` +
+        `&order=slotid,day.desc&limit=1000`;
+
+      try {
+        const data = await fetchJson(url);
+        const bySlot = new Map();
+
+        data.forEach(row => {
+          const slotId = String(row.slotid ?? '');
+          if (!bySlot.has(slotId)) bySlot.set(slotId, new Map());
+          bySlot.get(slotId).set(row.day, row);
+        });
+
+        const head = document.getElementById('weekly-head');
+        head.innerHTML = '<th class="week-slot-column">台番</th>';
+        days.forEach(targetDay => {
+          const th = document.createElement('th');
+          th.textContent = formatShortDay(targetDay);
+          th.title = targetDay;
+          head.appendChild(th);
+        });
+
+        const tbody = document.getElementById('weekly-data');
+        tbody.innerHTML = '';
+        const slotIds = [...bySlot.keys()].sort((a, b) =>
+          a.localeCompare(b, 'ja', { numeric: true })
+        );
+
+        slotIds.forEach(slotId => {
+          const tr = document.createElement('tr');
+          const slotCell = document.createElement('th');
+          slotCell.className = 'week-slot-column';
+          slotCell.scope = 'row';
+          slotCell.textContent = slotId;
+          tr.appendChild(slotCell);
+
+          days.forEach(targetDay => {
+            const td = document.createElement('td');
+            const row = bySlot.get(slotId).get(targetDay);
+
+            if (!row) {
+              td.className = 'week-empty';
+              td.textContent = '—';
+            } else {
+              const rank = row.rank == null ? '' : String(row.rank).trim();
+              const medal = calculateEstimatedMedal(row);
+              if (['4', '5', '6'].includes(rank)) {
+                td.classList.add(`week-rank-${rank}`);
+              }
+              td.title = `BIG ${row.big ?? '-'} / REG ${row.reg ?? '-'} / ${row.count ?? '-'}G`;
+
+              const rankSpan = document.createElement('span');
+              rankSpan.className = 'week-cell-rank';
+              rankSpan.textContent = rank ? `RANK ${rank}` : 'RANK —';
+              td.appendChild(rankSpan);
+
+              const medalSpan = document.createElement('span');
+              medalSpan.className = 'week-cell-medal';
+              medalSpan.textContent = medal == null
+                ? '差枚 —'
+                : `${medal > 0 ? '+' : ''}${medal.toLocaleString()}枚`;
+              td.appendChild(medalSpan);
+            }
+
+            tr.appendChild(td);
+          });
+
+          tbody.appendChild(tr);
+        });
+
+        setWeeklyMessage(`${slotIds.length}台 / ${shop} / ${name} / ${days[6]}〜${days[0]}`);
+        updateUrl(shop, day, name);
+      } catch (error) {
+        console.error('7日間データ取得エラー:', error);
+        clearWeeklyData('7日間のデータ取得に失敗しました。');
+      }
+    }
+
+
+    async function switchView(view) {
+      currentView = view;
+      const weekly = view === 'weekly';
+      document.getElementById('single-view').hidden = weekly;
+      document.getElementById('weekly-view').hidden = !weekly;
+      document.getElementById('prediction-section').hidden = weekly;
+      document.getElementById('single-view-button').classList.toggle('active', !weekly);
+      document.getElementById('weekly-view-button').classList.toggle('active', weekly);
+      updateDayNavigationButtons();
+
+      if (weekly) {
+        await loadWeeklyData();
+      } else {
+        await loadData();
+      }
     }
 
 
@@ -705,6 +1074,13 @@
         day,
         name
       );
+
+      updateDayNavigationButtons();
+
+      if (currentView === 'weekly') {
+        document.getElementById('prediction-section').hidden = true;
+        await loadWeeklyData();
+      }
     }
 
 
@@ -1662,6 +2038,7 @@
 
 
           await loadData();
+          updateDayNavigationButtons();
         }
       );
 
@@ -1672,6 +2049,23 @@
         'change',
         loadData
       );
+
+
+    document
+      .getElementById('single-view-button')
+      .addEventListener('click', () => switchView('single'));
+
+    document
+      .getElementById('weekly-view-button')
+      .addEventListener('click', () => switchView('weekly'));
+
+    document
+      .getElementById('previous-day-button')
+      .addEventListener('click', goToPreviousDay);
+
+    document
+      .getElementById('next-day-button')
+      .addEventListener('click', goToNextDay);
 
 
     async function init() {
