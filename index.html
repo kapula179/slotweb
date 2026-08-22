@@ -266,6 +266,11 @@
       font-size: 13px;
     }
 
+    .week-cell-rank-short,
+    .week-cell-medal-short {
+      display: none;
+    }
+
     .week-rank-4 { background: #d9f3fa; }
     .week-rank-5 { background: #ffe0e0; }
     .week-rank-6 {
@@ -278,6 +283,57 @@
       margin: 8px 2px 18px;
       color: #64748b;
       font-size: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .week-scroll {
+        overflow-x: hidden;
+      }
+
+      .week-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+      }
+
+      .week-table th,
+      .week-table td {
+        width: calc((100% - 42px) / 7);
+        min-width: 0;
+        padding: 6px 1px;
+        font-size: 10px;
+        overflow: hidden;
+      }
+
+      .week-table .week-slot-column {
+        width: 42px;
+        min-width: 42px;
+        font-size: 11px;
+      }
+
+      .week-cell-rank,
+      .week-cell-medal {
+        display: none;
+      }
+
+      .week-cell-rank-short,
+      .week-cell-medal-short {
+        display: block;
+      }
+
+      .week-cell-rank-short {
+        min-height: 12px;
+        font-weight: bold;
+      }
+
+      .week-cell-medal-short {
+        margin-top: 2px;
+        font-size: 9px;
+      }
+
+      .week-note {
+        display: none;
+      }
     }
 
     .prediction-label {
@@ -961,12 +1017,23 @@
               rankSpan.textContent = rank ? `RANK ${rank}` : 'RANK —';
               td.appendChild(rankSpan);
 
+              const shortRankSpan = document.createElement('span');
+              shortRankSpan.className = 'week-cell-rank-short';
+              shortRankSpan.textContent = rank || '—';
+              td.appendChild(shortRankSpan);
+
               const medalSpan = document.createElement('span');
               medalSpan.className = 'week-cell-medal';
               medalSpan.textContent = medal == null
                 ? '差枚 —'
                 : `${medal > 0 ? '+' : ''}${medal.toLocaleString()}枚`;
               td.appendChild(medalSpan);
+
+              const shortMedalSpan = document.createElement('span');
+              shortMedalSpan.className = 'week-cell-medal-short';
+              shortMedalSpan.textContent =
+                `B${row.big ?? '-'}/R${row.reg ?? '-'}`;
+              td.appendChild(shortMedalSpan);
             }
 
             tr.appendChild(td);
