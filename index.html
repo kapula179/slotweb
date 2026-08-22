@@ -297,9 +297,9 @@
     <div id="prediction-info" class="result-info"></div>
 
     <div id="island-map" class="island-map" hidden>
-      <h3>テキサス八木 マイジャグラー島</h3>
+      <h3 id="island-title">マイジャグラー島</h3>
       <div id="island-top" class="island-side"></div>
-      <div class="island-aisle">通路</div>
+      <div id="island-aisle" class="island-aisle">通路</div>
       <div id="island-bottom" class="island-side"></div>
     </div>
 
@@ -917,7 +917,31 @@
 
       map.hidden = true;
 
-      if (shop !== 'テキサス八木') {
+      const layouts = {
+        'テキサス八木': {
+          title: 'テキサス八木 マイジャグラー島',
+          top: Array.from(
+            { length: 14 },
+            (_, index) => 25 + index
+          ),
+          bottom: Array.from(
+            { length: 14 },
+            (_, index) => 82 - index
+          )
+        },
+        'ZAPP高陽': {
+          title: 'ZAPP高陽 マイジャグラー島',
+          top: Array.from(
+            { length: 10 },
+            (_, index) => 183 + index
+          ),
+          bottom: null
+        }
+      };
+
+      const layout = layouts[shop];
+
+      if (!layout) {
         return;
       }
 
@@ -928,31 +952,42 @@
         ])
       );
 
-      const topSlots =
-        Array.from(
-          { length: 14 },
-          (_, index) => 25 + index
-        );
-
-      const bottomSlots =
-        Array.from(
-          { length: 14 },
-          (_, index) => 82 - index
-        );
+      document
+        .getElementById('island-title')
+        .textContent = layout.title;
 
       renderIslandSide(
         'island-top',
-        topSlots,
+        layout.top,
         rowsBySlot,
         worstRanks
       );
 
-      renderIslandSide(
-        'island-bottom',
-        bottomSlots,
-        rowsBySlot,
-        worstRanks
-      );
+      const aisle =
+        document.getElementById(
+          'island-aisle'
+        );
+
+      const bottom =
+        document.getElementById(
+          'island-bottom'
+        );
+
+      if (layout.bottom) {
+        aisle.hidden = false;
+        bottom.hidden = false;
+
+        renderIslandSide(
+          'island-bottom',
+          layout.bottom,
+          rowsBySlot,
+          worstRanks
+        );
+      } else {
+        aisle.hidden = true;
+        bottom.hidden = true;
+        bottom.innerHTML = '';
+      }
 
       map.hidden = false;
     }
@@ -969,6 +1004,10 @@
         document.getElementById(elementId);
 
       side.innerHTML = '';
+      side.style.gridTemplateColumns =
+        `repeat(${slotIds.length}, minmax(74px, 1fr))`;
+      side.style.minWidth =
+        `${slotIds.length * 79}px`;
 
       slotIds.forEach(slotId => {
 
