@@ -285,6 +285,10 @@
       font-size: 12px;
     }
 
+    .week-mobile-note {
+      display: none;
+    }
+
     @media (max-width: 600px) {
       .week-scroll {
         overflow-x: hidden;
@@ -333,6 +337,13 @@
 
       .week-note {
         display: none;
+      }
+
+      .week-mobile-note {
+        display: block;
+        margin: -4px 0 8px;
+        color: #64748b;
+        font-size: 11px;
       }
     }
 
@@ -600,6 +611,7 @@
   <section id="weekly-view" hidden>
     <h2>過去7日間</h2>
     <div id="weekly-info" class="result-info"></div>
+    <p class="week-mobile-note">上段：設定 / 下段：BIG・REG</p>
     <div class="week-scroll">
       <table class="week-table">
         <thead><tr id="weekly-head"></tr></thead>
@@ -1032,7 +1044,7 @@
               const shortMedalSpan = document.createElement('span');
               shortMedalSpan.className = 'week-cell-medal-short';
               shortMedalSpan.textContent =
-                `B${row.big ?? '-'}/R${row.reg ?? '-'}`;
+                `${row.big ?? '-'}/${row.reg ?? '-'}`;
               td.appendChild(shortMedalSpan);
             }
 
