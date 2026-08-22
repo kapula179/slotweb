@@ -777,6 +777,12 @@
       );
 
       clearTable();
+      clearWeeklyData(
+        currentView === 'weekly'
+          ? '日付と機種を選択してください。'
+          : ''
+      );
+      updateDayNavigationButtons();
 
       if (!shop) {
         return;
@@ -801,6 +807,10 @@
         days,
         '選択してください'
       );
+
+      if (days.length > 0) {
+        daySelect.value = days[0];
+      }
 
       daySelect.disabled = false;
       updateDayNavigationButtons();
@@ -846,6 +856,15 @@
         names,
         '全機種'
       );
+
+      const defaultName =
+        names.find(name =>
+          name.includes('マイジャグラー')
+        );
+
+      if (defaultName) {
+        nameSelect.value = defaultName;
+      }
 
       nameSelect.disabled = false;
     }
@@ -2042,22 +2061,26 @@
       await loadDays(shop);
 
 
-      if (!day) {
-        return;
-      }
-
-
       const daySelect =
         document.getElementById(
           'day-select'
         );
 
-      daySelect.value = day;
+      if (day) {
+        daySelect.value = day;
+      }
+
+      const selectedDay =
+        daySelect.value;
+
+      if (!selectedDay) {
+        return;
+      }
 
 
       await loadNames(
         shop,
-        day
+        selectedDay
       );
 
 
@@ -2080,15 +2103,23 @@
         'change',
         async function () {
 
+          const shop = this.value;
+
           await loadDays(
-            this.value
+            shop
           );
 
-          updateUrl(
-            this.value,
-            '',
-            ''
-          );
+          const day =
+            document
+              .getElementById('day-select')
+              .value;
+
+          if (shop && day) {
+            await loadNames(shop, day);
+            await loadData();
+          } else {
+            updateUrl(shop, '', '');
+          }
         }
       );
 
