@@ -1,128 +1,15 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Slot Data - Vue</title>
-  <style>
-    body { font-family: sans-serif; margin: 12px; background: #f5f5f5; }
-    h1 { font-size: 22px; margin-bottom: 16px; }
-    nav { display: flex; gap: 8px; margin-bottom: 12px; }
-    nav a { color: #1565c0; text-decoration: none; }
-    nav a[aria-current="page"] { color: #222; font-weight: bold; }
-    .filters { background: white; padding: 12px; margin-bottom: 12px; border-radius: 8px; }
-    .filter-row { margin-bottom: 10px; }
-    .filter-row:last-child { margin-bottom: 0; }
-    label { display: inline-block; width: 50px; font-weight: bold; }
-    select { font-size: 16px; padding: 7px; width: calc(100% - 60px); max-width: 350px; }
-    .result-info { margin: 10px 0; font-size: 14px; }
-    .error { color: #c62828; }
-    table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
-    th, td { border: 1px solid #ccc; padding: 7px 3px; text-align: center; white-space: nowrap; }
-    th { background: #eee; }
-    .positive { color: red; }
-    .negative { color: blue; }
-    @media (max-width: 600px) {
-      body { margin: 8px; }
-      h1 { font-size: 20px; }
-      table { font-size: 12px; }
-      th, td { padding: 6px 2px; }
-    }
-  </style>
-</head>
-<body>
-  <div id="app">
-    <h1>スロットデータ <small>(Vue)</small></h1>
-    <nav aria-label="実装の切り替え">
-      <a href="index.html">JavaScript</a>
-      <a href="vue.html" aria-current="page">Vue</a>
-      <a href="react.html">React</a>
-    </nav>
-    <div class="filters">
-      <div class="filter-row">
-        <label for="shop">店舗</label>
-        <select id="shop" v-model="shop" @change="changeShop">
-          <option value="">選択してください</option>
-          <option v-for="value in shops" :key="value" :value="value">{{ value }}</option>
-        </select>
-      </div>
-      <div class="filter-row">
-        <label for="day">日付</label>
-        <select id="day" v-model="day" :disabled="!shop" @change="changeDay">
-          <option value="">選択してください</option>
-          <option v-for="value in days" :key="value" :value="value">{{ value }}</option>
-        </select>
-      </div>
-      <div class="filter-row">
-        <label for="name">機種</label>
-        <select id="name" v-model="name" :disabled="!day" @change="loadData">
-          <option value="">全機種</option>
-          <option v-for="value in names" :key="value" :value="value">{{ value }}</option>
-        </select>
-      </div>
-    </div>
-    <div class="result-info" :class="{ error }">{{ error || info }}</div>
-    <table>
-      <thead><tr><th>台番</th><th>BIG</th><th>REG</th><th>回転</th><th>差枚</th><th>RANK</th></tr></thead>
-      <tbody>
-        <tr v-for="row in rows" :key="row.slotid">
-          <td>{{ row.slotid ?? '' }}</td><td>{{ row.big ?? '' }}</td><td>{{ row.reg ?? '' }}</td>
-          <td>{{ row.count ?? '' }}</td><td :class="medalClass(row.medal)">{{ medalText(row.medal) }}</td>
-          <td>{{ row.rank ?? '' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script>
-    const API = 'https://cbakwimqxhfbqdnvyeoi.supabase.co/rest/v1';
-    const KEY = 'sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm';
-    const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
-    const get = async path => {
-      const response = await fetch(`${API}/${path}`, { headers });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
-    };
-    Vue.createApp({
-      data: () => ({ shops: [], days: [], names: [], rows: [], shop: '', day: '', name: '', error: '' }),
-      computed: {
-        info() { return this.rows.length ? `${this.rows.length}台 / ${this.shop} / ${this.day}${this.name ? ` / ${this.name}` : ''}` : ''; }
-      },
-      methods: {
-        async run(task) { this.error = ''; try { await task(); } catch (e) { console.error(e); this.error = 'データ取得に失敗しました。'; } },
-        async changeShop() {
-          this.day = ''; this.name = ''; this.days = []; this.names = []; this.rows = []; this.updateUrl();
-          if (this.shop) this.days = (await get(`shop_day_list?select=day&shopid=eq.${encodeURIComponent(this.shop)}&order=day.desc`)).map(x => x.day).filter(Boolean);
-        },
-        async changeDay() {
-          this.name = ''; this.names = []; this.rows = [];
-          if (!this.day) return this.updateUrl();
-          this.names = (await get(`shop_day_name_list?select=name&shopid=eq.${encodeURIComponent(this.shop)}&day=eq.${encodeURIComponent(this.day)}&order=name`)).map(x => x.name).filter(Boolean);
-          await this.loadData();
-        },
-        async loadData() {
-          if (!this.shop || !this.day) return;
-          let path = `slot?select=slotid,big,reg,count,medal,rank&shopid=eq.${encodeURIComponent(this.shop)}&day=eq.${encodeURIComponent(this.day)}`;
-          if (this.name) path += `&name=eq.${encodeURIComponent(this.name)}`;
-          this.rows = await get(`${path}&order=slotid`); this.updateUrl();
-        },
-        updateUrl() {
-          const p = new URLSearchParams();
-          if (this.shop) p.set('shop', this.shop); if (this.day) p.set('day', this.day); if (this.name) p.set('name', this.name);
-          history.replaceState(null, '', `${location.pathname}${p.size ? `?${p}` : ''}`);
-        },
-        medalClass(value) { return value > 0 ? 'positive' : value < 0 ? 'negative' : ''; },
-        medalText(value) { return value == null ? '' : value > 0 ? `+${value}` : value; }
-      },
-      async mounted() {
-        await this.run(async () => {
-          this.shops = (await get('shop_list?select=shopid&order=shopid')).map(x => x.shopid).filter(Boolean);
-          const p = new URLSearchParams(location.search); this.shop = p.get('shop') || '';
-          if (this.shop) { await this.changeShop(); this.day = p.get('day') || ''; }
-          if (this.day) { await this.changeDay(); this.name = p.get('name') || ''; await this.loadData(); }
-        });
-      }
-    }).mount('#app');
-  </script>
-</body>
-</html>
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Slot Data - Vue</title>
+<style>
+*{box-sizing:border-box}body{margin:12px;background:#f5f5f5;color:#222;font-family:sans-serif}h1{font-size:22px}h2{margin:22px 0 8px;font-size:19px}nav{display:flex;gap:10px;margin-bottom:12px}nav a{color:#1565c0;text-decoration:none}nav a[aria-current=page]{color:#222;font-weight:bold}.filters,.island-map{padding:12px;margin-bottom:12px;border-radius:8px;background:#fff}.filter-row{margin-bottom:10px}.filter-row:last-child{margin:0}label{display:inline-block;width:50px;font-weight:bold}select{width:calc(100% - 60px);max-width:350px;padding:7px;font-size:16px}.day-controls{display:inline-flex;align-items:center;gap:6px;width:calc(100% - 60px);max-width:510px;vertical-align:middle}.day-controls select{flex:1;min-width:0;width:auto}.day-button,.view-button{padding:7px 10px;border:1px solid #94a3b8;border-radius:7px;background:#fff;font-weight:bold;white-space:nowrap}.view-switcher{display:flex;gap:8px;margin-bottom:12px}.view-button{border-radius:999px}.view-button.active{border-color:#2563eb;background:#2563eb;color:#fff}button{cursor:pointer}button:disabled{cursor:default;opacity:.4}.result-info{margin:10px 0;font-size:14px}.error{color:#c62828}table{width:100%;border-collapse:collapse;background:#fff;font-size:14px}th,td{padding:7px 3px;border:1px solid #ccc;text-align:center;white-space:nowrap}th{background:#eee}.positive{color:#d11}.negative{color:#1565c0}.rank-row-4{background:#d9f3fa}.rank-row-5{background:#ffe0e0}.rank-row-6{background:linear-gradient(90deg,#ffd6d6,#fff0b8,#d8f3dc,#d5ecff,#eadcff)}.rank-badge,.prediction-label{display:inline-block;padding:3px 7px;border-radius:999px;font-weight:bold}.rank-4{background:#16a6c9;color:#fff}.rank-5{background:#e53935;color:#fff}.rank-6{background:linear-gradient(90deg,#f55,#fc3,#6b6,#5af,#b5c)}.prediction-label{font-size:12px}.prediction-hold{background:#ffe45c;color:#4f4100}.prediction-raise{background:#ffe2e2;color:#9b1c1c}.prediction-avoid{background:#dbeafe;color:#1e40af}.prediction-marginal{background:#e5e7eb;color:#4b5563}.sort-button{border:0;background:transparent;font:inherit;font-weight:bold}.island-mini{display:grid;gap:3px;max-width:420px}.island-side{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px}.mini-machine{min-width:0;padding:7px 1px;border:1px solid #cbd5e1;border-radius:4px;text-align:center;font-size:10px;font-weight:bold}.island-detail{margin-top:14px;overflow-x:auto}.detail-side{display:flex;gap:5px;min-width:max-content}.island-machine{min-width:78px;padding:7px 4px;border:2px solid #cbd5e1;border-radius:6px;text-align:center}.island-machine span{display:block}.aisle{margin:4px 0;padding:3px;background:#e5e7eb;color:#64748b;text-align:center;font-size:11px}.top-ranked{outline:2px solid #d4a700}.week-scroll{overflow-x:auto;border:1px solid #dbe3ec;border-radius:8px}.week-table{min-width:800px;border-collapse:separate;border-spacing:0}.week-table th,.week-table td{min-width:102px}.week-slot{position:sticky;left:0;z-index:1;min-width:64px!important;background:#f8fafc}.week-rank,.week-medal{display:block}.week-rank{font-weight:bold;font-size:12px}.week-medal{font-size:13px}.week-short,.mobile-note{display:none}.week-rank-4{background:#d9f3fa}.week-rank-5{background:#ffe0e0}.week-rank-6{background:linear-gradient(135deg,#ffd6d6,#fff0b8,#d8f3dc,#d5ecff,#eadcff)}.note{color:#64748b;font-size:12px}[v-cloak]{display:none}@media(max-width:600px){body{margin:8px}.day-controls{gap:3px}.day-button{padding:7px 5px;font-size:11px}table{font-size:12px}.week-scroll{overflow:hidden}.week-table{width:100%;min-width:0;table-layout:fixed}.week-table th,.week-table td{width:calc((100% - 42px)/7);min-width:0;padding:6px 1px;overflow:hidden;font-size:10px}.week-table .week-slot{width:42px;min-width:42px!important}.week-rank,.week-medal,.desktop-note{display:none}.week-short,.mobile-note{display:block}.mobile-note{margin:-4px 0 8px;color:#64748b;font-size:11px}}
+</style></head><body><div id="app" v-cloak>
+<h1>スロットデータ <small>(Vue)</small></h1><nav><a href="index.html">JavaScript</a><a href="vue.html" aria-current="page">Vue</a><a href="react.html">React</a></nav>
+<div class="filters"><div class="filter-row"><label>店舗</label><select v-model="shop" @change="changeShop"><option value="">選択してください</option><option v-for="v in shops" :value="v">{{v}}</option></select></div><div class="filter-row"><label>日付</label><span class="day-controls"><select v-model="day" :disabled="!shop" @change="changeDay"><option value="">選択してください</option><option v-for="v in days" :value="v">{{v}}</option></select><button class="day-button" v-show="view==='single'" :disabled="!hasPrevious" @click="moveDay(1)">← 前日</button><button class="day-button" v-show="view==='single'" :disabled="!hasNext" @click="moveDay(-1)">翌日 →</button></span></div><div class="filter-row"><label>機種</label><select v-model="name" :disabled="!day" @change="loadAll"><option value="">全機種</option><option v-for="v in names" :value="v">{{v}}</option></select></div></div>
+<div class="view-switcher"><button class="view-button" :class="{active:view==='single'}" @click="switchView('single')">単日表示</button><button class="view-button" :class="{active:view==='weekly'}" @click="switchView('weekly')">7日間表示</button></div><div v-if="error" class="result-info error">{{error}}</div>
+<section v-show="view==='single'"><div v-if="rows.length" class="result-info">{{rows.length}}台 / {{shop}} / {{day}}<template v-if="name"> / {{name}}</template></div><table><thead><tr><th>台番</th><th>BIG</th><th>REG</th><th>回転</th><th>差枚</th><th>RANK</th></tr></thead><tbody><tr v-for="r in rows" :key="r.slotid" :class="rankRowClass(r.rank)"><td>{{r.slotid}}</td><td>{{r.big}}</td><td>{{r.reg}}</td><td>{{r.count}}</td><td :class="medalClass(r.medal)">{{signed(r.medal)}}</td><td><span v-if="r.rank" class="rank-badge" :class="`rank-${r.rank}`">{{r.rank}}</span></td></tr></tbody></table>
+<section v-if="predictions.length"><h2>{{predictionDay}} 翌日予想</h2><div class="result-info">{{predictionInfo}}</div><div v-if="islandLayout" class="island-map"><h3>{{islandLayout.title}}</h3><div class="island-mini"><div class="island-side"><div v-for="s in islandLayout.top" class="mini-machine" :class="islandClasses(s)">{{s}}</div></div><div v-if="islandLayout.bottom" class="aisle">通路</div><div v-if="islandLayout.bottom" class="island-side"><div v-for="s in islandLayout.bottom" class="mini-machine" :class="islandClasses(s)">{{s}}</div></div></div><div class="island-detail"><div class="detail-side"><div v-for="s in islandLayout.top" class="island-machine" :class="islandClasses(s)"><span>{{s}}</span><span>{{predictionLabel(predictionFor(s)?.grade)}}</span><span v-if="predictionFor(s)?._worstRank">悪{{predictionFor(s)._worstRank}}位</span></div></div><div v-if="islandLayout.bottom" class="aisle">通路</div><div v-if="islandLayout.bottom" class="detail-side"><div v-for="s in islandLayout.bottom" class="island-machine" :class="islandClasses(s)"><span>{{s}}</span><span>{{predictionLabel(predictionFor(s)?.grade)}}</span><span v-if="predictionFor(s)?._worstRank">悪{{predictionFor(s)._worstRank}}位</span></div></div></div></div>
+<table><thead><tr><th><button class="sort-button" @click="sortPredictions('slotid')">台番 {{sortMark('slotid')}}</button></th><th><button class="sort-button" @click="sortPredictions('grade')">判定 {{sortMark('grade')}}</button></th><th><button class="sort-button" @click="sortPredictions('rank')">ワースト順位 {{sortMark('rank')}}</button></th></tr></thead><tbody><tr v-for="r in sortedPredictions"><td>{{r.slotid}}</td><td><span class="prediction-label" :class="predictionClass(r.grade)">{{predictionLabel(r.grade)}}</span></td><td>{{r._worstRank||''}}</td></tr></tbody></table><p class="note">予想は過去データを基にした参考情報です。</p></section></section>
+<section v-show="view==='weekly'"><h2>過去7日間</h2><div class="result-info">{{weeklyInfo}}</div><p class="mobile-note">上段：設定 / 下段：BIG・REG</p><div class="week-scroll"><table class="week-table"><thead><tr><th class="week-slot">台番</th><th v-for="d in weekDays">{{shortDay(d)}}</th></tr></thead><tbody><tr v-for="item in weeklyRows"><th class="week-slot">{{item.slotid}}</th><td v-for="c in item.cells" :class="weekRankClass(c.row?.rank)"><template v-if="c.row"><span class="week-rank">RANK {{c.row.rank||'—'}}</span><span class="week-medal">{{signed(estimatedMedal(c.row))}}枚</span><span class="week-short">{{c.row.rank||'—'}}</span><span class="week-short">{{c.row.big??'-'}}/{{c.row.reg??'-'}}</span></template><template v-else>—</template></td></tr></tbody></table></div><p class="note desktop-note">最新日が左です。横にスクロールすると古い日付を確認できます。</p></section>
+</div><script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script><script>
+const API='https://cbakwimqxhfbqdnvyeoi.supabase.co/rest/v1',KEY='sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm',headers={apikey:KEY,Authorization:`Bearer ${KEY}`};const get=async p=>{const r=await fetch(`${API}/${p}`,{headers});if(!r.ok)throw Error(`HTTP ${r.status}`);return r.json()};const layouts={'テキサス八木':{title:'テキサス八木 マイジャグラー島',top:Array.from({length:14},(_,i)=>25+i),bottom:Array.from({length:14},(_,i)=>82-i)},'ZAPP高陽':{title:'ZAPP高陽 マイジャグラー島',top:Array.from({length:10},(_,i)=>183+i),bottom:null}},gradeOrder={raise_candidate:1,hold_misfire:2,avoid_recent_high:3,marginal:4};
+Vue.createApp({data:()=>({shops:[],days:[],names:[],rows:[],predictions:[],weeklyRows:[],weekDays:[],shop:'',day:'',name:'',view:'single',error:'',predictionDay:'',weeklyInfo:'',sortKey:'slotid',sortDirection:'asc'}),computed:{hasPrevious(){let i=this.days.indexOf(this.day);return i>=0&&i<this.days.length-1},hasNext(){return this.days.indexOf(this.day)>0},islandLayout(){return layouts[this.shop]||null},predictionMap(){return new Map(this.predictions.map(r=>[String(r.slotid),r]))},predictionInfo(){let c={hold_misfire:0,raise_candidate:0,avoid_recent_high:0,marginal:0};this.predictions.forEach(r=>{if(c[r.grade]!=null)c[r.grade]++});return `${this.predictions.length}台 / 据え置き ${c.hold_misfire}台 / 上げ ${c.raise_candidate}台 / 回避 ${c.avoid_recent_high}台 / 保留 ${c.marginal}台`},sortedPredictions(){let a=[...this.predictions],d=this.sortDirection==='asc'?1:-1,k=this.sortKey;return a.sort((x,y)=>{if(k==='slotid')return String(x.slotid).localeCompare(String(y.slotid),'ja',{numeric:true})*d;let xv=k==='grade'?(gradeOrder[x.grade]??99):(x._worstRank||9999),yv=k==='grade'?(gradeOrder[y.grade]??99):(y._worstRank||9999);return(xv-yv)*d})}},methods:{async run(f){this.error='';try{await f()}catch(e){console.error(e);this.error='データ取得に失敗しました。'}},async loadShops(){this.shops=(await get('shop_list?select=shopid&order=shopid')).map(x=>x.shopid).filter(Boolean)},async loadDays(){this.days=(await get(`shop_day_list?select=day&shopid=eq.${encodeURIComponent(this.shop)}&order=day.desc`)).map(x=>x.day).filter(Boolean)},async loadNames(){this.names=(await get(`shop_day_name_list?select=name&shopid=eq.${encodeURIComponent(this.shop)}&day=eq.${this.day}&order=name`)).map(x=>x.name).filter(Boolean)},defaultName(p=''){this.name=p&&this.names.includes(p)?p:(this.names.find(x=>x.includes('マイジャグラー'))||'')},async changeShop(){await this.run(async()=>{this.day=this.name='';this.days=[];this.names=[];this.rows=[];this.predictions=[];this.weeklyRows=[];if(!this.shop)return this.updateUrl();await this.loadDays();this.day=this.days[0]||'';if(this.day){await this.loadNames();this.defaultName();await this.loadAll()}})},async changeDay(){await this.run(async()=>{let old=this.name;this.name='';this.rows=[];this.predictions=[];if(!this.day)return this.updateUrl();await this.loadNames();this.defaultName(old);await this.loadAll()})},async moveDay(n){let i=this.days.indexOf(this.day),t=i+n;if(t<0||t>=this.days.length)return;this.day=this.days[t];await this.changeDay()},async switchView(v){this.view=v;await this.run(()=>v==='weekly'?this.loadWeekly():this.loadAll())},async loadAll(){if(!this.shop||!this.day)return;await Promise.all([this.loadRows(),this.loadPredictions()]);if(this.view==='weekly')await this.loadWeekly();this.updateUrl()},async loadRows(){let p=`slot?select=slotid,big,reg,count,medal,rank&shopid=eq.${encodeURIComponent(this.shop)}&day=eq.${this.day}`;if(this.name)p+=`&name=eq.${encodeURIComponent(this.name)}`;this.rows=await get(`${p}&order=slotid`)},async loadPredictions(){this.predictions=[];this.predictionDay=this.offsetDay(this.day,1);let p=`predictions?select=slotid,name,score,grade,reasons&shopid=eq.${encodeURIComponent(this.shop)}&prediction_day=eq.${this.predictionDay}&model_version=eq.myjuggler_2day_v1`;if(this.name)p+=`&name=eq.${encodeURIComponent(this.name)}`;let rows=await get(`${p}&order=score.desc,slotid.asc`),ranked=rows.map(row=>{let r=Array.isArray(row.reasons)?row.reasons:[],a=r[0]?.estimated_medal??r[0]?.medal,b=r[1]?.estimated_medal??r[1]?.medal;return{row,total:a==null||b==null?null:Number(a)+Number(b)}}).sort((a,b)=>a.total==null?1:b.total==null?-1:a.total-b.total),ranks=new Map();ranked.forEach((x,i)=>{if(x.total!=null)ranks.set(String(x.row.slotid),i+1)});this.predictions=rows.map(r=>({...r,_worstRank:ranks.get(String(r.slotid))||null}));this.sortKey='slotid';this.sortDirection='asc'},async loadWeekly(){if(!this.shop||!this.day){this.weeklyInfo='店舗と基準日を選択してください。';return}if(!this.name){this.weeklyRows=[];this.weeklyInfo='7日間表示では機種を選択してください。';return}this.weekDays=Array.from({length:7},(_,i)=>this.offsetDay(this.day,-i));let old=this.weekDays[6],data=await get(`slot?select=day,slotid,name,big,reg,count,rank&shopid=eq.${encodeURIComponent(this.shop)}&name=eq.${encodeURIComponent(this.name)}&day=gte.${old}&day=lte.${this.day}&order=slotid,day.desc&limit=1000`),map=new Map();data.forEach(r=>{let id=String(r.slotid);if(!map.has(id))map.set(id,new Map());map.get(id).set(r.day,r)});this.weeklyRows=[...map.keys()].sort((a,b)=>a.localeCompare(b,'ja',{numeric:true})).map(slotid=>({slotid,cells:this.weekDays.map(day=>({day,row:map.get(slotid).get(day)}))}));this.weeklyInfo=`${this.weeklyRows.length}台 / ${this.shop} / ${this.name} / ${old}〜${this.day}`;this.updateUrl()},updateUrl(){let p=new URLSearchParams();if(this.shop)p.set('shop',this.shop);if(this.day)p.set('day',this.day);if(this.name)p.set('name',this.name);history.replaceState(null,'',`${location.pathname}${p.size?`?${p}`:''}`)},offsetDay(s,n){let[y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)},shortDay(s){let[,m,d]=s.split('-');return`${+m}/${+d}`},estimatedMedal(r){return Math.round(+r.big*240 + +r.reg*96 - +r.count*1.25)},signed(v){if(v==null||v==='')return'';let n=+v;return n>0?`+${n.toLocaleString()}`:n.toLocaleString()},medalClass(v){return v>0?'positive':v<0?'negative':''},rankRowClass(v){return['4','5','6'].includes(String(v))?`rank-row-${v}`:''},weekRankClass(v){return['4','5','6'].includes(String(v))?`week-rank-${v}`:''},predictionLabel(g){return{hold_misfire:'不発据え置き',raise_candidate:'上げ候補',avoid_recent_high:'スルー',marginal:'保留'}[g]||'保留'},predictionClass(g){return{hold_misfire:'prediction-hold',raise_candidate:'prediction-raise',avoid_recent_high:'prediction-avoid',marginal:'prediction-marginal'}[g]||'prediction-marginal'},predictionFor(s){return this.predictionMap.get(String(s))},islandClasses(s){let r=this.predictionFor(s),a=[this.predictionClass(r?.grade)];if(r?._worstRank<=10)a.push('top-ranked');return a},sortPredictions(k){if(this.sortKey===k)this.sortDirection=this.sortDirection==='asc'?'desc':'asc';else{this.sortKey=k;this.sortDirection='asc'}},sortMark(k){return this.sortKey===k?(this.sortDirection==='asc'?'↑':'↓'):'↕'}},async mounted(){await this.run(async()=>{await this.loadShops();let p=new URLSearchParams(location.search),s=p.get('shop')||'',d=p.get('day')||'',n=p.get('name')||'';this.shop=this.shops.includes(s)?s:'';if(!this.shop)return;await this.loadDays();this.day=this.days.includes(d)?d:(this.days[0]||'');if(!this.day)return;await this.loadNames();this.defaultName(n);await this.loadAll()})}}).mount('#app');
+</script></body></html>
