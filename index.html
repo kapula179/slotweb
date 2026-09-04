@@ -344,9 +344,15 @@
       }
 
       #weekly-view.monthly-view .week-table {
-        width: auto;
-        min-width: 3100px;
-        table-layout: auto;
+        width: max-content;
+        min-width: 0;
+        table-layout: fixed;
+      }
+
+      #weekly-view.monthly-view .week-table th:not(.week-slot-column),
+      #weekly-view.monthly-view .week-table td {
+        width: calc((100vw - 58px) / 7);
+        min-width: calc((100vw - 58px) / 7);
       }
 
       .week-mobile-note {
