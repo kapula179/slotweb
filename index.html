@@ -339,6 +339,16 @@
         display: none;
       }
 
+      #weekly-view.monthly-view .week-scroll {
+        overflow-x: auto;
+      }
+
+      #weekly-view.monthly-view .week-table {
+        width: auto;
+        min-width: 3100px;
+        table-layout: auto;
+      }
+
       .week-mobile-note {
         display: block;
         margin: -4px 0 8px;
@@ -587,6 +597,7 @@
   <div class="view-switcher" aria-label="表示期間">
     <button id="single-view-button" class="view-button active" type="button">単日表示</button>
     <button id="weekly-view-button" class="view-button" type="button">7日間表示</button>
+    <button id="monthly-view-button" class="view-button" type="button">30日間表示</button>
   </div>
 
   <section id="single-view">
@@ -609,7 +620,7 @@
   </section>
 
   <section id="weekly-view" hidden>
-    <h2>過去7日間</h2>
+    <h2 id="history-title">過去7日間</h2>
     <div id="weekly-info" class="result-info"></div>
     <p class="week-mobile-note">上段：設定 / 下段：BIG・REG</p>
     <div class="week-scroll">
@@ -778,7 +789,7 @@
 
       clearTable();
       clearWeeklyData(
-        currentView === 'weekly'
+        currentView !== 'single'
           ? '日付と機種を選択してください。'
           : ''
       );
@@ -985,7 +996,8 @@
       }
 
       setWeeklyMessage('7日間のデータを読み込み中…');
-      const days = getPreviousDays(day, 7);
+      const dayCount = currentView === 'monthly' ? 30 : 7;
+      const days = getPreviousDays(day, dayCount);
       const url =
         `${SUPABASE_URL}/rest/v1/slot` +
         `?select=day,slotid,name,big,reg,count,rank` +
@@ -1073,7 +1085,7 @@
           tbody.appendChild(tr);
         });
 
-        setWeeklyMessage(`${slotIds.length}台 / ${shop} / ${name} / ${days[6]}〜${days[0]}`);
+        setWeeklyMessage(`${slotIds.length}台 / ${shop} / ${name} / ${days[days.length - 1]}〜${days[0]}`);
         updateUrl(shop, day, name);
       } catch (error) {
         console.error('7日間データ取得エラー:', error);
@@ -1084,15 +1096,19 @@
 
     async function switchView(view) {
       currentView = view;
-      const weekly = view === 'weekly';
-      document.getElementById('single-view').hidden = weekly;
-      document.getElementById('weekly-view').hidden = !weekly;
-      document.getElementById('prediction-section').hidden = weekly;
-      document.getElementById('single-view-button').classList.toggle('active', !weekly);
-      document.getElementById('weekly-view-button').classList.toggle('active', weekly);
+      const history = view !== 'single';
+      const monthly = view === 'monthly';
+      document.getElementById('single-view').hidden = history;
+      document.getElementById('weekly-view').hidden = !history;
+      document.getElementById('weekly-view').classList.toggle('monthly-view', monthly);
+      document.getElementById('history-title').textContent = monthly ? '過去30日間' : '過去7日間';
+      document.getElementById('prediction-section').hidden = history;
+      document.getElementById('single-view-button').classList.toggle('active', !history);
+      document.getElementById('weekly-view-button').classList.toggle('active', view === 'weekly');
+      document.getElementById('monthly-view-button').classList.toggle('active', monthly);
       updateDayNavigationButtons();
 
-      if (weekly) {
+      if (history) {
         await loadWeeklyData();
       } else {
         await loadData();
@@ -1175,7 +1191,7 @@
 
       updateDayNavigationButtons();
 
-      if (currentView === 'weekly') {
+      if (currentView !== 'single') {
         document.getElementById('prediction-section').hidden = true;
         await loadWeeklyData();
       }
@@ -2168,6 +2184,10 @@
     document
       .getElementById('weekly-view-button')
       .addEventListener('click', () => switchView('weekly'));
+
+    document
+      .getElementById('monthly-view-button')
+      .addEventListener('click', () => switchView('monthly'));
 
     document
       .getElementById('previous-day-button')
