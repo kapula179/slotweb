@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>店舗ランキング - Slot Data</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 12px; background: #f5f5f5; color: #222; font-family: sans-serif; }
+    h1 { margin-bottom: 12px; font-size: 22px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    nav a { color: #1565c0; text-decoration: none; }
+    nav a[aria-current="page"] { color: #222; font-weight: bold; }
+    .filters { padding: 12px; border-radius: 8px; background: white; }
+    .filter-row { margin-bottom: 10px; }
+    .filter-row:last-child { margin-bottom: 0; }
+    label { display: inline-block; width: 50px; font-weight: bold; }
+    select { width: calc(100% - 60px); max-width: 360px; padding: 7px; font-size: 16px; }
+    .tabs { display: flex; gap: 6px; margin: 12px 0; overflow-x: auto; }
+    .tab { flex: 0 0 auto; padding: 7px 12px; border: 1px solid #94a3b8; border-radius: 999px; background: white; font-weight: bold; cursor: pointer; }
+    .tab.active { border-color: #2563eb; background: #2563eb; color: white; }
+    .result-info { margin: 10px 0; font-size: 14px; }
+    .error { color: #c62828; }
+    table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
+    th, td { padding: 8px 4px; border: 1px solid #ccc; text-align: center; white-space: nowrap; }
+    th { background: #eee; }
+    .shop-link { color: #1565c0; font-weight: bold; text-decoration: none; }
+    .rank4 { color: #087f9c; font-weight: bold; }
+    .rank5 { color: #d32f2f; font-weight: bold; }
+    .rank6 { padding: 2px 6px; border-radius: 999px; background: linear-gradient(90deg,#f99,#fd7,#9e9,#9df,#d9f); color: #111; font-weight: bold; }
+    .primary-value { font-size: 17px; font-weight: bold; }
+    .note { color: #64748b; font-size: 12px; }
+    @media (max-width: 600px) {
+      body { margin: 8px; }
+      h1 { font-size: 20px; }
+      table { font-size: 11px; }
+      th, td { padding: 7px 2px; }
+      .optional { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <h1>店舗ランキング</h1>
+  <nav><a href="index.html">JavaScript</a><a href="vue.html">Vue</a><a href="react.html">React</a><a href="ranking.html" aria-current="page">店舗ランキング</a></nav>
+  <div class="filters">
+    <div class="filter-row"><label for="day">日付</label><select id="day" disabled><option value="">読み込み中</option></select></div>
+    <div class="filter-row"><label for="name">機種</label><select id="name" disabled><option value="">読み込み中</option></select></div>
+  </div>
+  <div class="tabs" aria-label="ランキング基準">
+    <button class="tab active" data-key="rank456_count">総合456</button>
+    <button class="tab" data-key="rank56_count">高設定56</button>
+    <button class="tab" data-key="rank6_count">RANK6</button>
+    <button class="tab" data-key="rank456_rate">456率</button>
+  </div>
+  <div id="info" class="result-info"></div>
+  <table><thead><tr><th>順位</th><th>店舗</th><th id="metric-title">456台数</th><th><span class="rank4">4</span></th><th><span class="rank5">5</span></th><th><span class="rank6">6</span></th><th class="optional">対象</th><th>456率</th></tr></thead><tbody id="rows"></tbody></table>
+  <p class="note">台数ランキングは設置台数の多い店舗が有利になります。「456率」もあわせて確認してください。店舗名を押すと単日表示へ移動します。</p>
+  <script>
+    const API = 'https://cbakwimqxhfbqdnvyeoi.supabase.co/rest/v1';
+    const KEY = 'sb_publishable_CIVy_I-SIKBrfNfXa1sGYQ_b3sMvKMm';
+    const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+    const get = async path => { const response = await fetch(`${API}/${path}`, { headers }); if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); };
+    let rankingRows = [];
+    let metric = 'rank456_count';
+    const metricNames = { rank456_count: '456台数', rank56_count: '56台数', rank6_count: 'RANK6', rank456_rate: '456率' };
+
+    function setOptions(select, values) {
+      select.textContent = '';
+      values.forEach(value => { const option = document.createElement('option'); option.value = value; option.textContent = value; select.appendChild(option); });
+      select.disabled = values.length === 0;
+    }
+
+    async function loadDays() {
+      const data = await get('shop_rankings_day_list?select=day&order=day.desc&limit=1000');
+      const days = data.map(row => row.day).filter(Boolean);
+      const requested = new URLSearchParams(location.search).get('day');
+      setOptions(document.getElementById('day'), days);
+      document.getElementById('day').value = days.includes(requested) ? requested : (days[0] || '');
+    }
+
+    async function loadNames() {
+      const day = document.getElementById('day').value;
+      const data = await get(`shop_rankings_name_list?select=name&day=eq.${day}&order=name&limit=1000`);
+      const names = data.map(row => row.name).filter(Boolean);
+      const requested = new URLSearchParams(location.search).get('name');
+      setOptions(document.getElementById('name'), names);
+      document.getElementById('name').value = names.includes(requested) ? requested : (names.find(name => name.includes('マイジャグラー')) || names[0] || '');
+    }
+
+    async function loadRankings() {
+      const day = document.getElementById('day').value;
+      const name = document.getElementById('name').value;
+      if (!day || !name) return;
+      const path = `shop_rankings?select=day,shopid,name,total_machines,rank4_count,rank5_count,rank6_count,rank456_count,rank56_count,rank456_rate&day=eq.${day}&name=eq.${encodeURIComponent(name)}&limit=1000`;
+      rankingRows = await get(path);
+      history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ day, name })}`);
+      render();
+    }
+
+    function render() {
+      const sorted = rankingRows.slice().sort((a, b) => Number(b[metric]) - Number(a[metric]) || Number(b.rank456_rate) - Number(a.rank456_rate) || String(a.shopid).localeCompare(String(b.shopid), 'ja'));
+      document.getElementById('metric-title').textContent = metricNames[metric];
+      document.getElementById('info').textContent = `${sorted.length}店舗 / ${document.getElementById('day').value} / ${document.getElementById('name').value}`;
+      const tbody = document.getElementById('rows');
+      tbody.textContent = '';
+      sorted.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        const values = [index + 1, row.shopid, metric === 'rank456_rate' ? `${row.rank456_rate}%` : `${row[metric]}台`, row.rank4_count, row.rank5_count, row.rank6_count, row.total_machines, `${row.rank456_rate}%`];
+        values.forEach((value, cellIndex) => {
+          const td = document.createElement('td');
+          if (cellIndex === 1) { const link = document.createElement('a'); link.className = 'shop-link'; link.href = `index.html?${new URLSearchParams({ shop: row.shopid, day: row.day, name: row.name })}`; link.textContent = value; td.appendChild(link); }
+          else { td.textContent = value; if (cellIndex === 2) td.className = 'primary-value'; if (cellIndex === 3) td.classList.add('rank4'); if (cellIndex === 4) td.classList.add('rank5'); if (cellIndex === 5) td.classList.add('rank6'); if (cellIndex === 6) td.classList.add('optional'); }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('day').addEventListener('change', async () => { await loadNames(); await loadRankings(); });
+    document.getElementById('name').addEventListener('change', loadRankings);
+    document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => { metric = button.dataset.key; document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item === button)); render(); }));
+    (async () => { try { await loadDays(); await loadNames(); await loadRankings(); } catch (error) { console.error(error); document.getElementById('info').className = 'result-info error'; document.getElementById('info').textContent = 'ランキングの取得に失敗しました。SQLのVIEWを作成したか確認してください。'; } })();
+  </script>
+</body>
+</html>

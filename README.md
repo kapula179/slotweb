@@ -14,6 +14,7 @@ SupabaseのREST APIからデータを取得し、GitHub Pagesで公開できる�
 - 台番号・判定・ワースト順位による並べ替え
 - 店舗ごとの島図表示
 - スマートフォン用ミニ島図
+- 指定日のRANK 4・5・6台数による店舗ランキング
 - JavaScript・Vue・Reactの3種類の表示ページ
 
 ## ページ構成
@@ -23,8 +24,10 @@ SupabaseのREST APIからデータを取得し、GitHub Pagesで公開できる�
 | `index.html` | メインのJavaScript版。翌日予想・島図対応 |
 | `vue.html` | Vue 3版 |
 | `react.html` | React 18版 |
+| `ranking.html` | 指定日の店舗ランキング |
 | `sql/create_predictions.sql` | 予想テーブル作成SQL |
 | `sql/insert_predictions_for_source_day.sql` | 翌日予想データ作成SQL |
+| `sql/create_shop_rankings.sql` | 店舗ランキング用ビュー作成SQL |
 
 Vue版・React版はCDNからライブラリを読み込むため、ビルドせずに動作します。
 
@@ -111,6 +114,16 @@ updated_at
 ```
 
 Web画面からは読み取りだけを許可し、予想データの書き込みはバッチ処理側から行う設計です。
+
+### 店舗ランキング用ビュー
+
+ランキングページを使用する前に、以下のSQLをSupabase SQL Editorで実行します。
+
+```text
+sql/create_shop_rankings.sql
+```
+
+指定日・機種ごとに、各店舗のRANK 4・5・6の台数と割合を集計します。
 
 ## 翌日予想データの作成
 
